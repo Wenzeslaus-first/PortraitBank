@@ -1,8 +1,7 @@
 {
     "display_name": "PortraitBank",
-    "loading_order": 1,
-    "js": "index.js",
-    "author": "Wenzeslaus",
     "version": "1.0.0",
-    "auto_update": true
+    "author": "Your name",
+    "js": "index.js",
+    "auto_update": false
 }
