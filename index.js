@@ -253,55 +253,66 @@ jQuery(async () => {
 
     console.log('✅ PortraitBank полностью загружен. Команды: /portrait, /portrait-generate, /portrait-prompt');
 });
-// ----- 8. КОМАНДА: /portrait-image (полностью автономная, без внешних зависимостей) -----
+// ----- 8. КОМАНДА: /portrait-image (поиск по метке) -----
 async function portraitImageCommand() {
     const ctx = SillyTavern.getContext();
     const charId = ctx.characterId;
     
-    // Читаем описание прямо из настроек
+    // Читаем описание из настроек
     const settings = ctx.extensionSettings['PortraitBank'] || {};
     const description = settings[charId] || '';
 
     if (!description.trim()) {
-        toastr.warning('❌ Нет описания для этого персонажа. Сначала используйте /portrait или /portrait-generate.');
+        toastr.warning('❌ Нет описания для этого персонажа.');
         return;
     }
 
-    // 1. Открываем вкладку Image Generation (чтобы DOM точно был)
+    // 1. Открываем вкладку Image Generation
     $('.character-popups .tab:contains("Image Generation")').trigger('click');
     await new Promise(r => setTimeout(r, 400));
 
-    // 2. Находим поле Character-specific prompt prefix — самые надёжные селекторы
-    const $prefixField = $('#character_prompt_prefix, .character_prompt_prefix, [name="character_prompt_prefix"], input[placeholder*="prompt prefix"]').first();
-
-    if (!$prefixField.length) {
-        toastr.error('❌ Поле Character-specific prompt prefix не найдено. Включите расширение Image Generation и откройте вкладку.');
+    // 2. Ищем поле Character-specific prompt prefix по тексту метки
+    const $label = $('div:contains("Character-specific prompt prefix")').first();
+    if (!$label.length) {
+        toastr.error('❌ Не найдена метка "Character-specific prompt prefix".');
         return;
     }
 
-    // 3. Устанавливаем значение, триггерим события сохранения
+    // Поле обычно находится сразу после метки (или внутри того же блока)
+    let $prefixField = $label.next('textarea, input').first();
+    if (!$prefixField.length) {
+        // Если не рядом, ищем внутри родительского блока
+        $prefixField = $label.closest('.flex-container, .character_popups_item, div').find('textarea, input').first();
+    }
+
+    if (!$prefixField.length) {
+        toastr.error('❌ Не найдено поле ввода рядом с меткой.');
+        return;
+    }
+
+    // 3. Устанавливаем значение
     $prefixField.val(description).trigger('input').trigger('change');
     toastr.success('✅ Prompt prefix установлен');
 
-    // 4. Запускаем кнопку Yourself (ждём немного, чтобы поле сохранилось)
+    // 4. Запускаем Yourself
     setTimeout(() => {
-        const $yourselfBtn = $('#yourself_button, button:contains("Yourself"), .yourself_button').first();
+        const $yourselfBtn = $('#yourself_button, button:contains("Yourself")').first();
         if ($yourselfBtn.length) {
             $yourselfBtn.trigger('click');
-            toastr.info('🎨 Генерация изображения запущена');
+            toastr.info('🎨 Генерация запущена');
         } else {
-            toastr.error('❌ Кнопка Yourself не найдена. Проверьте Image Generation.');
+            toastr.error('❌ Кнопка Yourself не найдена.');
         }
     }, 300);
 }
 
-// Регистрируем команду — используем SillyTavern.getContext() напрямую
+// Регистрация команды
 try {
     SillyTavern.getContext().registerSlashCommand(
         'portrait-image',
         portraitImageCommand,
         ['portrait-img', 'pb-image'],
-        '– вставить описание из PortraitBank в prompt prefix и запустить Yourself',
+        '– вставить описание в Character-specific prompt prefix и запустить Yourself',
         true,
         false
     );
