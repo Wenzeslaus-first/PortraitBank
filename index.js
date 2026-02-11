@@ -253,41 +253,76 @@ jQuery(async () => {
 
     console.log('✅ PortraitBank полностью загружен. Команды: /portrait, /portrait-generate, /portrait-prompt');
 });
-// ----- 8. КОМАНДА: /portrait-image (только заполнение поля) -----
-function fillPromptPrefix() {
+// ----- 8. КОМАНДА: /portrait-image (прямая запись в файл персонажа) -----
+async function portraitImageDirect() {
     const ctx = SillyTavern.getContext();
     const charId = ctx.characterId;
     const description = ctx.extensionSettings.PortraitBank?.[charId] || '';
 
     if (!description.trim()) {
-        toastr.warning('❌ Нет описания в PortraitBank. Сначала используйте /portrait-generate');
+        toastr.warning('❌ Сначала сохраните описание в PortraitBank');
         return;
     }
 
-    // Открываем вкладку Image Generation
-    $('.character-popups .tab:contains("Image Generation")').trigger('click');
+    // 1. Получаем объект текущего персонажа
+    const character = ctx.characters[charId];
+    if (!character) {
+        toastr.error('❌ Персонаж не найден');
+        return;
+    }
 
-    setTimeout(() => {
-        const $field = $('#sd_character_prompt');
-        if ($field.length) {
-            $field.val(description).trigger('input').trigger('change');
-            toastr.success('✅ Prompt prefix заполнен');
+    // 2. Инициализируем extensions, если их нет
+    if (!character.data.extensions) {
+        character.data.extensions = {};
+    }
+
+    // 3. Записываем промпт-префикс
+    character.data.extensions.sd_character_prompt = description.trim();
+    
+    // 4. Сохраняем персонажа (перезаписывает PNG-файл)
+    try {
+        if (typeof ctx.saveCharacter === 'function') {
+            await ctx.saveCharacter(character.avatar);
+            toastr.success('✅ Промпт-префикс сохранён в карточке персонажа');
         } else {
-            toastr.error('❌ Поле не найдено');
+            // Fallback: принудительное обновление
+            ctx.characters[charId] = character;
+            toastr.warning('⚠️ Сохранение в файл не удалось, но данные обновлены в памяти');
         }
-    }, 500);
+    } catch (e) {
+        console.error('Ошибка сохранения:', e);
+        toastr.error('❌ Не удалось сохранить карточку');
+        return;
+    }
+
+    // 5. Запускаем генерацию Yourself (через UI, это единственный способ)
+    setTimeout(() => {
+        // Открываем вкладку Image Generation, если закрыта
+        $('.character-popups .tab:contains("Image Generation")').trigger('click');
+        
+        setTimeout(() => {
+            const $btn = $('#yourself_button, button:contains("Yourself")').first();
+            if ($btn.length) {
+                $btn.trigger('click');
+                toastr.info('🎨 Генерация изображения запущена');
+            } else {
+                toastr.error('❌ Кнопка Yourself не найдена. Нажмите вручную.');
+            }
+        }, 400);
+    }, 200);
 }
 
+// Регистрация команды
 try {
     SillyTavern.getContext().registerSlashCommand(
         'portrait-image',
-        fillPromptPrefix,
+        portraitImageDirect,
         ['portrait-img', 'pb-image'],
-        '– заполнить поле Character-specific prompt prefix (без генерации)',
+        '– записать описание в карточку персонажа и запустить Yourself',
         true,
         false
     );
-    console.log('✅ Команда /portrait-image (заполнение) зарегистрирована');
+    console.log('✅ Команда /portrait-image (прямая запись) зарегистрирована');
 } catch (e) {
-    console.error(e);
+    console.error('Ошибка регистрации /portrait-image:', e);
 }
