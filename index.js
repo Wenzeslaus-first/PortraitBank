@@ -253,57 +253,55 @@ jQuery(async () => {
 
     console.log('✅ PortraitBank полностью загружен. Команды: /portrait, /portrait-generate, /portrait-prompt');
 });
-// ----- 8. КОМАНДА: /portrait-image — установить префикс и запустить "Yourself" -----
-async function setPromptPrefixAndGenerate() {
+// ----- 8. КОМАНДА: /portrait-image (полностью автономная, без внешних зависимостей) -----
+async function portraitImageCommand() {
     const ctx = SillyTavern.getContext();
     const charId = ctx.characterId;
-    const moduleName = 'PortraitBank'; // или используйте экспортированную переменную
-
-    // Читаем описание прямо из настроек расширения
-    const settings = ctx.extensionSettings[moduleName] || {};
+    
+    // Читаем описание прямо из настроек
+    const settings = ctx.extensionSettings['PortraitBank'] || {};
     const description = settings[charId] || '';
 
     if (!description.trim()) {
-        toastr.warning('❌ Сначала сохраните описание персонажа в PortraitBank (используйте /portrait или /portrait-generate)');
+        toastr.warning('❌ Нет описания для этого персонажа. Сначала используйте /portrait или /portrait-generate.');
         return;
     }
 
-    // Открываем вкладку Image Generation, чтобы поле точно существовало
+    // 1. Открываем вкладку Image Generation (чтобы DOM точно был)
     $('.character-popups .tab:contains("Image Generation")').trigger('click');
-    await new Promise(resolve => setTimeout(resolve, 300));
+    await new Promise(r => setTimeout(r, 400));
 
-    // 1. Устанавливаем значение в поле "Character-specific prompt prefix"
-    const $prefixField = $('#character_prompt_prefix, [name="character_prompt_prefix"], input[placeholder*="prompt prefix"], .character_prompt_prefix').first();
+    // 2. Находим поле Character-specific prompt prefix — самые надёжные селекторы
+    const $prefixField = $('#character_prompt_prefix, .character_prompt_prefix, [name="character_prompt_prefix"], input[placeholder*="prompt prefix"]').first();
 
     if (!$prefixField.length) {
-        toastr.error('❌ Поле Character-specific prompt prefix не найдено. Убедитесь, что расширение Image Generation включено и вкладка открыта.');
+        toastr.error('❌ Поле Character-specific prompt prefix не найдено. Включите расширение Image Generation и откройте вкладку.');
         return;
     }
 
+    // 3. Устанавливаем значение, триггерим события сохранения
     $prefixField.val(description).trigger('input').trigger('change');
     toastr.success('✅ Prompt prefix установлен');
 
-    // Небольшая задержка для сохранения
-    await new Promise(resolve => setTimeout(resolve, 200));
-
-    // 2. Запускаем генерацию изображения (кнопка "Yourself")
-    const $yourselfBtn = $('#yourself_button, button:contains("Yourself"), .yourself_button, [title*="Yourself"], [aria-label*="Yourself"]').first();
-
-    if ($yourselfBtn.length) {
-        $yourselfBtn.trigger('click');
-        toastr.info('🎨 Генерация изображения запущена');
-    } else {
-        toastr.error('❌ Кнопка Yourself не найдена. Проверьте подключение Image Generation.');
-    }
+    // 4. Запускаем кнопку Yourself (ждём немного, чтобы поле сохранилось)
+    setTimeout(() => {
+        const $yourselfBtn = $('#yourself_button, button:contains("Yourself"), .yourself_button').first();
+        if ($yourselfBtn.length) {
+            $yourselfBtn.trigger('click');
+            toastr.info('🎨 Генерация изображения запущена');
+        } else {
+            toastr.error('❌ Кнопка Yourself не найдена. Проверьте Image Generation.');
+        }
+    }, 300);
 }
 
-// Регистрируем команду
+// Регистрируем команду — используем SillyTavern.getContext() напрямую
 try {
     SillyTavern.getContext().registerSlashCommand(
         'portrait-image',
-        setPromptPrefixAndGenerate,
+        portraitImageCommand,
         ['portrait-img', 'pb-image'],
-        '– установить описание из PortraitBank в prompt prefix и запустить генерацию Yourself',
+        '– вставить описание из PortraitBank в prompt prefix и запустить Yourself',
         true,
         false
     );
