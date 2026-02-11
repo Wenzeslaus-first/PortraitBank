@@ -253,58 +253,56 @@ jQuery(async () => {
 
     console.log('✅ PortraitBank полностью загружен. Команды: /portrait, /portrait-generate, /portrait-prompt');
 });
-// ----- 8. КОМАНДА: /portrait-image (через API персонажа) -----
+// ----- 8. КОМАНДА: /portrait-image (точный селектор, только UI) -----
 async function portraitImageCommand() {
     const ctx = SillyTavern.getContext();
     const charId = ctx.characterId;
     const description = ctx.extensionSettings['PortraitBank']?.[charId] || '';
 
     if (!description.trim()) {
-        toastr.warning('❌ Нет описания для этого персонажа.');
+        toastr.warning('❌ Сначала сохраните описание персонажа в PortraitBank.');
         return;
     }
 
-    // 1. Устанавливаем prompt_prefix прямо в данные персонажа
-    const character = ctx.characters[charId];
-    if (!character) {
-        toastr.error('❌ Персонаж не найден.');
+    // 1. Открываем вкладку Image Generation (чтобы DOM точно был)
+    $('.character-popups .tab:contains("Image Generation")').trigger('click');
+    await new Promise(r => setTimeout(r, 400));
+
+    // 2. Находим поле по ID — теперь точно!
+    const $prefixField = $('#sd_character_prompt');
+    
+    if (!$prefixField.length) {
+        toastr.error('❌ Поле Character-specific prompt prefix не найдено. Убедитесь, что расширение Image Generation активно.');
         return;
     }
 
-    if (!character.data.extensions) character.data.extensions = {};
-    character.data.extensions.prompt_prefix = description.trim();
+    // 3. Устанавливаем значение и вызываем события сохранения
+    $prefixField.val(description).trigger('input').trigger('change');
+    toastr.success('✅ Prompt prefix установлен');
 
-    // 2. Сохраняем персонажа
-    if (typeof ctx.saveCharacter === 'function') {
-        await ctx.saveCharacter(character.avatar);
-        toastr.success('✅ Prompt prefix сохранён в карточке персонажа');
-    } else {
-        toastr.warning('⚠️ Автосохранение не сработало, но префикс установлен');
-    }
-
-    // 3. Запускаем Yourself через клик (если кнопка есть)
+    // 4. Запускаем генерацию Yourself
     setTimeout(() => {
         const $yourselfBtn = $('#yourself_button, button:contains("Yourself")').first();
         if ($yourselfBtn.length) {
             $yourselfBtn.trigger('click');
             toastr.info('🎨 Генерация изображения запущена');
         } else {
-            toastr.error('❌ Кнопка Yourself не найдена.');
+            toastr.error('❌ Кнопка Yourself не найдена. Проверьте расширение Image Generation.');
         }
     }, 300);
 }
 
-// Регистрация
+// Регистрация команды
 try {
     SillyTavern.getContext().registerSlashCommand(
         'portrait-image',
         portraitImageCommand,
         ['portrait-img', 'pb-image'],
-        '– установить prompt_prefix через API и запустить Yourself',
+        '– вставить описание в поле Image Generation и запустить Yourself',
         true,
         false
     );
-    console.log('✅ Команда /portrait-image (API) зарегистрирована');
+    console.log('✅ Команда /portrait-image (точный селектор) зарегистрирована');
 } catch (e) {
-    console.error('Ошибка регистрации:', e);
+    console.error('Ошибка регистрации /portrait-image:', e);
 }
