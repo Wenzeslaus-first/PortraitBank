@@ -257,10 +257,14 @@ jQuery(async () => {
 async function setPromptPrefixAndGenerate() {
     const ctx = SillyTavern.getContext();
     const charId = ctx.characterId;
-    const description = getDescription(charId);
+    const moduleName = 'PortraitBank'; // или используйте экспортированную переменную
+
+    // Читаем описание прямо из настроек расширения
+    const settings = ctx.extensionSettings[moduleName] || {};
+    const description = settings[charId] || '';
 
     if (!description.trim()) {
-        toastr.warning('❌ Сначала сохраните описание персонажа в PortraitBank');
+        toastr.warning('❌ Сначала сохраните описание персонажа в PortraitBank (используйте /portrait или /portrait-generate)');
         return;
     }
 
@@ -272,7 +276,7 @@ async function setPromptPrefixAndGenerate() {
     const $prefixField = $('#character_prompt_prefix, [name="character_prompt_prefix"], input[placeholder*="prompt prefix"], .character_prompt_prefix').first();
 
     if (!$prefixField.length) {
-        toastr.error('❌ Поле Character-specific prompt prefix не найдено. Убедитесь, что расширение Image Generation включено.');
+        toastr.error('❌ Поле Character-specific prompt prefix не найдено. Убедитесь, что расширение Image Generation включено и вкладка открыта.');
         return;
     }
 
@@ -293,7 +297,7 @@ async function setPromptPrefixAndGenerate() {
     }
 }
 
-// Регистрируем команду — используем SillyTavern.getContext() вместо переменной
+// Регистрируем команду
 try {
     SillyTavern.getContext().registerSlashCommand(
         'portrait-image',
