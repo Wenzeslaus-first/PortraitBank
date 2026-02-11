@@ -253,3 +253,55 @@ jQuery(async () => {
 
     console.log('✅ PortraitBank полностью загружен. Команды: /portrait, /portrait-generate, /portrait-prompt');
 });
+// ----- 8. КОМАНДА: /portrait-image — установить префикс и запустить "Yourself" -----
+async function setPromptPrefixAndGenerate() {
+    const ctx = SillyTavern.getContext();
+    const charId = ctx.characterId;
+    const description = getDescription(charId);
+
+    if (!description.trim()) {
+        toastr.warning('❌ Сначала сохраните описание персонажа в PortraitBank');
+        return;
+    }
+
+    // 1. Устанавливаем значение в поле "Character-specific prompt prefix"
+    //    Ищем поле по ID, классу или атрибуту (надёжный селектор)
+    const $prefixField = $('#character_prompt_prefix, [name="character_prompt_prefix"], input[placeholder*="prompt prefix"], .character_prompt_prefix').first();
+
+    if (!$prefixField.length) {
+        toastr.error('❌ Поле Character-specific prompt prefix не найдено. Откройте вкладку Image Generation у персонажа.');
+        return;
+    }
+
+    $prefixField.val(description).trigger('input').trigger('change');
+    toastr.success('✅ Prompt prefix установлен');
+
+    // Небольшая задержка, чтобы поле точно сохранилось
+    await new Promise(resolve => setTimeout(resolve, 200));
+
+    // 2. Запускаем генерацию изображения (кнопка "Yourself")
+    //    Ищем кнопку по тексту, ID, классу, атрибуту title
+    const $yourselfBtn = $('#yourself_button, button:contains("Yourself"), .yourself_button, [title*="Yourself"], [aria-label*="Yourself"]').first();
+
+    if ($yourselfBtn.length) {
+        $yourselfBtn.trigger('click');
+        toastr.info('🎨 Генерация изображения запущена');
+    } else {
+        toastr.error('❌ Кнопка Yourself не найдена. Убедитесь, что расширение Image Generation активно.');
+    }
+}
+
+// Регистрируем команду
+try {
+    context.registerSlashCommand(
+        'portrait-image',
+        setPromptPrefixAndGenerate,
+        ['portrait-img', 'pb-image'],
+        '– установить описание из PortraitBank в prompt prefix и запустить генерацию Yourself',
+        true,
+        false
+    );
+    console.log('✅ Команда /portrait-image зарегистрирована');
+} catch (e) {
+    console.error('Ошибка регистрации /portrait-image:', e);
+}
