@@ -253,76 +253,41 @@ jQuery(async () => {
 
     console.log('✅ PortraitBank полностью загружен. Команды: /portrait, /portrait-generate, /portrait-prompt');
 });
-// ----- 8. КОМАНДА: /portrait-image (с ожиданием элемента) -----
-async function portraitImageCommand() {
+// ----- 8. КОМАНДА: /portrait-image (только заполнение поля) -----
+function fillPromptPrefix() {
     const ctx = SillyTavern.getContext();
     const charId = ctx.characterId;
-    const description = ctx.extensionSettings['PortraitBank']?.[charId] || '';
+    const description = ctx.extensionSettings.PortraitBank?.[charId] || '';
 
     if (!description.trim()) {
-        toastr.warning('❌ Сначала сохраните описание персонажа в PortraitBank.');
+        toastr.warning('❌ Нет описания в PortraitBank. Сначала используйте /portrait-generate');
         return;
     }
 
     // Открываем вкладку Image Generation
     $('.character-popups .tab:contains("Image Generation")').trigger('click');
 
-    // Функция ожидания появления элемента
-    function waitForElement(selector, timeout = 5000) {
-        return new Promise((resolve, reject) => {
-            const intervalTime = 200;
-            let timeElapsed = 0;
-            const interval = setInterval(() => {
-                const element = $(selector);
-                if (element.length) {
-                    clearInterval(interval);
-                    resolve(element);
-                }
-                timeElapsed += intervalTime;
-                if (timeElapsed >= timeout) {
-                    clearInterval(interval);
-                    reject(new Error(`Элемент ${selector} не найден за ${timeout}ms`));
-                }
-            }, intervalTime);
-        });
-    }
-
-    try {
-        // Ждём поле sd_character_prompt
-        const $prefixField = await waitForElement('#sd_character_prompt');
-        
-        // Устанавливаем значение и триггерим события
-        $prefixField.val(description).trigger('input').trigger('change');
-        toastr.success('✅ Prompt prefix установлен');
-
-        // Ждём немного и нажимаем Yourself
-        setTimeout(() => {
-            const $yourselfBtn = $('#yourself_button, button:contains("Yourself")').first();
-            if ($yourselfBtn.length) {
-                $yourselfBtn.trigger('click');
-                toastr.info('🎨 Генерация изображения запущена');
-            } else {
-                toastr.error('❌ Кнопка Yourself не найдена.');
-            }
-        }, 500);
-
-    } catch (error) {
-        toastr.error('❌ Поле Character-specific prompt prefix не появилось. Откройте вкладку Image Generation вручную.');
-        console.error(error);
-    }
+    setTimeout(() => {
+        const $field = $('#sd_character_prompt');
+        if ($field.length) {
+            $field.val(description).trigger('input').trigger('change');
+            toastr.success('✅ Prompt prefix заполнен');
+        } else {
+            toastr.error('❌ Поле не найдено');
+        }
+    }, 500);
 }
 
-// Регистрация команды
 try {
     SillyTavern.getContext().registerSlashCommand(
         'portrait-image',
-        portraitImageCommand,
+        fillPromptPrefix,
         ['portrait-img', 'pb-image'],
-        '– вставить описание в sd_character_prompt и запустить Yourself',
+        '– заполнить поле Character-specific prompt prefix (без генерации)',
         true,
         false
     );
-    console.log('✅ Команда /portrait-image (с ожиданием) зарегистрирована');
+    console.log('✅ Команда /portrait-image (заполнение) зарегистрирована');
 } catch (e) {
-    console.error('Ошибка регистрации /portrait-image:', e);
+    console.error(e);
 }
