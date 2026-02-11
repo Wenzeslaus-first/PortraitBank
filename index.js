@@ -19,9 +19,29 @@ jQuery(() => {
     function updateUI() {
         const currentCharId = SillyTavern.getContext().characterId;
         const savedText = extensionSettings[MODULE_NAME][currentCharId] || '';
-        console.log('updateUI, текст:', savedText);
-        // пока без вставки в DOM
+        $('#portrait_bank_textarea').val(savedText);
     }
 
-    console.log('✅ Настройки и updateUI готовы');
+    // --- БЛОК ИНТЕРФЕЙСА ---
+    const blockHtml = `
+        <div id="portrait_bank_block" style="margin:10px; padding:10px; background:#333; border-radius:8px;">
+            <div style="font-weight:bold; color:white;">PortraitBank</div>
+            <textarea id="portrait_bank_textarea" style="width:100%; min-height:80px; color:white; background:#222;"></textarea>
+        </div>
+    `;
+
+    function injectBlock() {
+        if ($('#portrait_bank_block').length) return;
+        const target = $('.character_name_block, .character_name_prompt').first();
+        if (target.length) {
+            target.after(blockHtml);
+            updateUI();
+            console.log('✅ Блок вставлен');
+        } else {
+            setTimeout(injectBlock, 300);
+        }
+    }
+    injectBlock();
+
+    console.log('✅ Интерфейс добавлен');
 });
