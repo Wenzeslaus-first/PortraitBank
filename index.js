@@ -52,25 +52,27 @@ jQuery(async () => {
     });
     $('#portraitbank_cancel, #portraitbank_close, #portraitbank_overlay').on('click', closeModal);
 
-    // ----- 4. ДОБАВЛЯЕМ ИКОНКУ РЯДОМ С ИМЕНЕМ ПЕРСОНАЖА (ГАРАНТИРОВАННО) -----
-    function addIcon() {
-        // Ищем элемент с именем персонажа (первый попавшийся подойдёт)
-        const nameElement = $('.character_name_block').first();
-        if (nameElement.length && !$('#portraitbank_icon').length) {
-            const iconHtml = `<span id="portraitbank_icon" style="margin-left: 8px; cursor: pointer; color: #9c27b0; font-size: 1.2em;" title="PortraitBank — описание внешности для AI">
-                <i class="fa-solid fa-paintbrush"></i>
-            </span>`;
-            nameElement.append(iconHtml);
-            $('#portraitbank_icon').on('click', openModal);
-            console.log('✅ Иконка PortraitBank добавлена к имени персонажа');
+    // ----- 4. КНОПКА В ЛЕВОМ МЕНЮ (ГАРАНТИРОВАННО) -----
+    function addSidebarButton() {
+        // Ищем пункт меню, после которого вставим кнопку (например, "World Info")
+        const menuItem = $('.side_panel .list-group-item:contains("World Info")').first();
+        if (menuItem.length && !$('#portraitbank_sidebar_button').length) {
+            const buttonHtml = `
+                <div id="portraitbank_sidebar_button" class="list-group-item flex-container" style="cursor: pointer;">
+                    <div class="fa-container"><i class="fa-solid fa-paintbrush" style="color: #9c27b0;"></i></div>
+                    <span>PortraitBank</span>
+                </div>
+            `;
+            menuItem.after(buttonHtml);
+            $('#portraitbank_sidebar_button').on('click', openModal);
+            console.log('✅ Кнопка PortraitBank добавлена в левое меню');
         } else {
-            // Если элемент ещё не загружен — пробуем через 300 мс
-            setTimeout(addIcon, 300);
+            setTimeout(addSidebarButton, 500);
         }
     }
-    addIcon();
+    addSidebarButton();
 
-    // ----- 5. АВТОМАТИЧЕСКАЯ ВСТАВКА В ПРОМПТ -----
+    // ----- 5. ИНЪЕКЦИЯ В ПРОМПТ -----
     eventSource.on(eventTypes.GENERATION_STARTED, () => {
         const ctx = SillyTavern.getContext();
         const desc = getDescription(ctx.characterId);
