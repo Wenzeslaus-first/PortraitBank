@@ -9,7 +9,6 @@ jQuery(async () => {
         extensionSettings[MODULE_NAME] = {};
     }
 
-    // ----- 2. ФУНКЦИЯ ПОЛУЧЕНИЯ/СОХРАНЕНИЯ ОПИСАНИЯ -----
     function getDescription(charId) {
         return extensionSettings[MODULE_NAME][charId] || '';
     }
@@ -19,9 +18,9 @@ jQuery(async () => {
         saveSettingsDebounced();
     }
 
-    // ----- 3. СОЗДАНИЕ МОДАЛЬНОГО ОКНА (POPUP) -----
+    // ----- 2. МОДАЛЬНОЕ ОКНО -----
     const modalHtml = `
-        <div id="portraitbank_modal" class="flex-container" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 400px; max-width: 90%; background: var(--surface); border: 2px solid var(--primary); border-radius: 12px; padding: 20px; z-index: 9999; box-shadow: 0 0 20px rgba(0,0,0,0.7);">
+        <div id="portraitbank_modal" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 400px; max-width: 90%; background: var(--surface); border: 2px solid var(--primary); border-radius: 12px; padding: 20px; z-index: 9999; box-shadow: 0 0 20px rgba(0,0,0,0.7);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                 <span style="font-size: 18px; font-weight: bold; color: var(--white);">
                     <i class="fa-solid fa-image-portrait"></i> PortraitBank
@@ -39,11 +38,9 @@ jQuery(async () => {
         </div>
         <div id="portraitbank_overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9998;"></div>
     `;
-
-    // Добавляем модалку в body
     $('body').append(modalHtml);
 
-    // ----- 4. ФУНКЦИЯ ОТКРЫТИЯ МОДАЛКИ -----
+    // ----- 3. ФУНКЦИИ ОТКРЫТИЯ/ЗАКРЫТИЯ -----
     function openModal() {
         const charId = context.characterId;
         const description = getDescription(charId);
@@ -55,7 +52,6 @@ jQuery(async () => {
         $('#portraitbank_modal, #portraitbank_overlay').fadeOut(200);
     }
 
-    // ----- 5. ОБРАБОТЧИКИ МОДАЛКИ -----
     $('#portraitbank_save').on('click', function() {
         const charId = context.characterId;
         const newText = $('#portraitbank_textarea').val();
@@ -64,29 +60,49 @@ jQuery(async () => {
         closeModal();
     });
 
-    $('#portraitbank_cancel, #portraitbank_close, #portraitbank_overlay').on('click', function() {
-        closeModal();
-    });
+    $('#portraitbank_cancel, #portraitbank_close, #portraitbank_overlay').on('click', closeModal);
 
-    // ----- 6. КНОПКА В МЕНЮ РАСШИРЕНИЙ -----
+    // ----- 4. ДОБАВЛЕНИЕ КНОПКИ С ОЖИДАНИЕМ МЕНЮ -----
     const buttonId = 'portraitbank_button';
     const buttonHtml = `<div id="${buttonId}" class="list-group-item flex-container">
         <div class="fa-container"><i class="fa-solid fa-image"></i></div>
         <span>PortraitBank</span>
     </div>`;
 
-    $('#extensions_menu').append(buttonHtml);
+    function addButton() {
+        if ($('#extensions_menu').length) {
+            if (!$(`#${buttonId}`).length) {
+                $('#extensions_menu').append(buttonHtml);
+                $(`#${buttonId}`).on('click', openModal);
+                console.log('✅ Кнопка PortraitBank добавлена в меню');
+            }
+        } else {
+            console.log('⏳ Меню расширений не найдено, пробуем ещё...');
+            setTimeout(addButton, 500);
+        }
+    }
 
-    $(`#${buttonId}`).on('click', function() {
-        openModal();
-    });
+    addButton();
 
-    // ----- 7. ИНЪЕКЦИЯ В ПРОМПТ ПРИ ГЕНЕРАЦИИ -----
+    // ----- 5. АЛЬТЕРНАТИВНОЕ МЕСТО (если меню так и не появилось) -----
+    setTimeout(() => {
+        if (!$(`#${buttonId}`).length) {
+            // Пробуем добавить в правый клик или в другое стабильное меню
+            const altHtml = `<li id="${buttonId}" class="list-group-item flex-container">
+                <div class="fa-container"><i class="fa-solid fa-image"></i></div>
+                <span>PortraitBank</span>
+            </li>`;
+            $('.top-bar .dropdown-menu').first().append(altHtml);
+            $(`#${buttonId}`).on('click', openModal);
+            console.log('⚠️ Кнопка добавлена в альтернативное место');
+        }
+    }, 3000);
+
+    // ----- 6. ИНЪЕКЦИЯ В ПРОМПТ -----
     eventSource.on(eventTypes.GENERATION_STARTED, () => {
         const ctx = SillyTavern.getContext();
         const charId = ctx.characterId;
         const description = getDescription(charId);
-
         if (description.trim()) {
             ctx.setExtensionPrompt(
                 MODULE_NAME,
@@ -95,9 +111,9 @@ jQuery(async () => {
                 15,
                 'system'
             );
-            console.log('PortraitBank: промпт внедрён');
+            console.log('🎨 Промпт внедрён');
         }
     });
 
-    console.log('✅ PortraitBank загружен (кнопка в меню)');
+    console.log('✅ PortraitBank загружен');
 });
