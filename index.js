@@ -48,11 +48,11 @@ function setDescription(charId, text) {
     saveSettings();
 }
 
-// ----- Modal window (main PortraitBank editor) -------------------------
+// ----- ADAPTIVE: Modal window (main PortraitBank editor) --------------
 function createModal() {
     if (document.getElementById('portraitbank_modal')) return;
     const modalHtml = `
-        <div id="portraitbank_modal" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 400px; max-width: 90%; background: var(--surface); border: 2px solid var(--primary); border-radius: 12px; padding: 20px; z-index: 9999; box-shadow: 0 0 20px rgba(0,0,0,0.7);">
+        <div id="portraitbank_modal" style="display: none; position: fixed; background: var(--surface); border: 2px solid var(--primary); border-radius: 12px; padding: 20px; z-index: 9999; box-shadow: 0 0 20px rgba(0,0,0,0.7);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                 <span style="font-size: 18px; font-weight: bold; color: var(--white);"><i class="fa-solid fa-image-portrait"></i> PortraitBank</span>
                 <span id="portraitbank_close" style="cursor: pointer; font-size: 24px; color: var(--gray400);">&times;</span>
@@ -71,8 +71,44 @@ function createModal() {
 function openModal() {
     const ctx = SillyTavern.getContext();
     const description = getDescription(ctx.characterId);
+    const $modal = $('#portraitbank_modal');
+    const $overlay = $('#portraitbank_overlay');
+    
+    // Устанавливаем текст
     $('#portraitbank_textarea').val(description);
-    $('#portraitbank_modal, #portraitbank_overlay').fadeIn(200);
+    
+    // Адаптивные стили под мобильные/десктоп
+    const isMobile = window.innerWidth <= 600;
+    
+    // Сбрасываем ранее добавленные inline-стили, оставляя базовые
+    $modal.attr('style', 'display: none; position: fixed; border: 2px solid var(--primary); border-radius: 12px; padding: 20px; z-index: 9999; box-shadow: 0 0 20px rgba(0,0,0,0.7);');
+    
+    if (isMobile) {
+        $modal.css({
+            top: '10px',
+            left: '5%',
+            right: '5%',
+            width: 'auto',
+            maxHeight: 'calc(100vh - 20px)',
+            overflowY: 'auto',
+            transform: 'none',
+            background: 'rgba(32, 32, 32, 0.95)',
+        });
+    } else {
+        $modal.css({
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: '400px',
+            maxWidth: '90%',
+            background: 'var(--surface)',
+            maxHeight: 'none',
+            overflowY: 'visible',
+        });
+    }
+    
+    $modal.fadeIn(200);
+    $overlay.fadeIn(200);
 }
 
 function closeModal() {
@@ -111,7 +147,6 @@ function openCompareModal(oldText, newText) {
     modal.attr('style', 'display: none; position: fixed; border: 2px solid var(--primary); padding: 0; z-index: 9999; box-shadow: 0 0 20px rgba(0,0,0,0.7);');
 
     if (isMobile) {
-        // --- МОБИЛЬНЫЙ РЕЖИМ: прижато к верху, полупрозрачный серый фон, прокрутка ---
         modal.css({
             top: '10px',
             left: '5%',
@@ -127,16 +162,13 @@ function openCompareModal(oldText, newText) {
 
         const mobileHtml = `
             <div style="display: flex; flex-direction: column; gap: 16px;">
-                <!-- Вкладки -->
                 <div style="display: flex; border-bottom: 1px solid var(--gray600);">
                     <div id="portraitbank_tab_old" style="flex: 1; text-align: center; padding: 10px; cursor: pointer; border-bottom: 3px solid var(--primary); color: var(--primary); font-weight: bold;">Текущее</div>
                     <div id="portraitbank_tab_new" style="flex: 1; text-align: center; padding: 10px; cursor: pointer; border-bottom: 3px solid transparent; color: var(--gray300); font-weight: bold;">Новое</div>
                 </div>
-                <!-- Текстовое поле -->
                 <textarea id="portraitbank_compare_textarea" 
                     style="width: 100%; min-height: 180px; padding: 12px; border-radius: 8px; background: var(--black50a); color: var(--white); border: 1px solid var(--gray500); font-size: 16px; resize: vertical; box-sizing: border-box;"
                 >${oldText}</textarea>
-                <!-- Кнопка выбора -->
                 <button id="portraitbank_choose_mobile" class="menu_button" style="width: 100%; padding: 12px; font-size: 16px;">
                     <i class="fa-solid fa-check"></i> Выбрать это описание
                 </button>
@@ -283,7 +315,7 @@ async function generateDescriptionFromPrompt(promptText = '') {
     }
 }
 
-// ----- Command: set prompt prefix and generate image via /sd you (БЕЗ КНОПОК) -----
+// ----- Command: set prompt prefix and generate image via /sd you -----
 async function portraitImageCommand() {
     const ctx = SillyTavern.getContext();
     const charId = ctx.characterId;
@@ -419,12 +451,10 @@ function bindSettingsUI() {
 
     updateUIInfo();
 
-    // Исправление ошибки "Cannot listen to undefined event"
     const ctx = SillyTavern.getContext();
     if (ctx.eventTypes && ctx.eventTypes.CHARACTER_SWITCHED) {
         ctx.eventSource.on(ctx.eventTypes.CHARACTER_SWITCHED, updateUIInfo);
     } else {
-        // fallback — обновляем раз в секунду
         setInterval(updateUIInfo, 1000);
     }
 }
