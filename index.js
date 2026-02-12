@@ -79,18 +79,18 @@ function closeModal() {
     $('#portraitbank_modal, #portraitbank_overlay').fadeOut(200);
 }
 
-// ----- ADAPTIVE: Compare Modal (desktop: centered two columns, mobile: centered with scroll) -----
+// ----- ADAPTIVE: Compare Modal (desktop: centered two columns, mobile: top-aligned with scroll) -----
 function createCompareModal() {
     if (document.getElementById('portraitbank_compare_modal')) return;
     
     const modalHtml = `
-        <div id="portraitbank_compare_modal" style="display: none; position: fixed; background: var(--surface); border: 2px solid var(--primary); padding: 20px; z-index: 9999; box-shadow: 0 0 20px rgba(0,0,0,0.7);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <div id="portraitbank_compare_modal" style="display: none; position: fixed; background: var(--surface); border: 2px solid var(--primary); padding: 0; z-index: 9999; box-shadow: 0 0 20px rgba(0,0,0,0.7);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 20px 20px 0 20px;">
                 <span style="font-size: 18px; font-weight: bold; color: var(--white);"><i class="fa-solid fa-code-compare"></i> PortraitBank – Сравнение</span>
                 <span id="portraitbank_compare_close" style="cursor: pointer; font-size: 24px; color: var(--gray400);">&times;</span>
             </div>
-            <div id="portraitbank_compare_content"></div>
-            <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
+            <div id="portraitbank_compare_content" style="padding: 0 20px;"></div>
+            <div style="display: flex; justify-content: flex-end; padding: 20px;">
                 <button id="portraitbank_compare_cancel" class="menu_button">Отмена</button>
             </div>
         </div>
@@ -109,24 +109,21 @@ function openCompareModal(oldText, newText) {
     const overlay = $('#portraitbank_compare_overlay');
     const contentDiv = $('#portraitbank_compare_content');
 
-    // Сброс стилей: оставляем только базовые, остальное переопределим
+    // Сброс стилей: оставляем базовые
     modal.attr('style', 'display: none; position: fixed; background: var(--surface); border: 2px solid var(--primary); padding: 0; z-index: 9999; box-shadow: 0 0 20px rgba(0,0,0,0.7);');
 
     if (isMobile) {
-        // --- МОБИЛЬНЫЙ РЕЖИМ: центрированное окно с прокруткой ---
+        // --- МОБИЛЬНЫЙ РЕЖИМ: окно прижато к верху, полностью видимое, с прокруткой ---
         modal.css({
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            width: '90%',
-            maxWidth: '400px',
-            maxHeight: '80vh',
+            top: '10px',
+            left: '5%',
+            right: '5%',
+            width: 'auto',
+            maxHeight: 'calc(100vh - 20px)',
             overflowY: 'auto',
+            transform: 'none',
             borderRadius: '16px',
-            padding: '20px',
-            boxSizing: 'border-box',
             bottom: 'auto',
-            right: 'auto',
         });
 
         const mobileHtml = `
@@ -140,15 +137,15 @@ function openCompareModal(oldText, newText) {
                         Новое
                     </div>
                 </div>
-                <!-- Текстовое поле -->
+                <!-- Текстовое поле (можно растягивать по вертикали) -->
                 <textarea id="portraitbank_compare_textarea" 
-                    style="width: 100%; min-height: 180px; padding: 12px; border-radius: 8px; background: var(--black50a); color: var(--white); border: 1px solid var(--gray500); font-size: 16px; resize: vertical;"
+                    style="width: 100%; min-height: 180px; padding: 12px; border-radius: 8px; background: var(--black50a); color: var(--white); border: 1px solid var(--gray500); font-size: 16px; resize: vertical; box-sizing: border-box;"
                 >${oldText}</textarea>
                 <!-- Кнопка выбора -->
                 <button id="portraitbank_choose_mobile" class="menu_button" style="width: 100%; padding: 12px; font-size: 16px;">
                     <i class="fa-solid fa-check"></i> Выбрать это описание
                 </button>
-                <p style="color: var(--gray400); font-size: 12px; margin: 0;">
+                <p style="color: var(--gray400); font-size: 12px; margin: 0 0 10px 0;">
                     <i class="fa-solid fa-arrows-left-right"></i> Свайп по тексту для переключения
                 </p>
             </div>
@@ -203,7 +200,7 @@ function openCompareModal(oldText, newText) {
         });
 
     } else {
-        // --- ДЕСКТОПНЫЙ РЕЖИМ: два столбца ---
+        // --- ДЕСКТОПНЫЙ РЕЖИМ: два столбца, центрированное окно ---
         modal.css({
             top: '50%',
             left: '50%',
