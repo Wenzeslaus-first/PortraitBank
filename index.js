@@ -74,12 +74,59 @@ function closeModal() {
     $('#portraitbank_modal, #portraitbank_overlay').fadeOut(200);
 }
 
+// ----- NEW: Compare Modal (two descriptions side by side) -------------
+function createCompareModal() {
+    if (document.getElementById('portraitbank_compare_modal')) return;
+    const modalHtml = `
+        <div id="portraitbank_compare_modal" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 800px; max-width: 95%; background: var(--surface); border: 2px solid var(--primary); border-radius: 12px; padding: 20px; z-index: 9999; box-shadow: 0 0 20px rgba(0,0,0,0.7);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <span style="font-size: 18px; font-weight: bold; color: var(--white);"><i class="fa-solid fa-code-compare"></i> PortraitBank – Сравнение</span>
+                <span id="portraitbank_compare_close" style="cursor: pointer; font-size: 24px; color: var(--gray400);">&times;</span>
+            </div>
+            <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                <!-- Старое описание -->
+                <div style="flex: 1; min-width: 250px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                        <span style="color: var(--gray300); font-weight: bold;">Текущее описание</span>
+                        <span class="fa-solid fa-pencil" style="color: var(--gray400);" title="Редактируемое поле"></span>
+                    </div>
+                    <textarea id="portraitbank_compare_old" style="width: 100%; min-height: 200px; padding: 10px; border-radius: 8px; background: var(--black50a); color: var(--white); border: 1px solid var(--gray500);"></textarea>
+                    <button id="portraitbank_choose_old" class="menu_button" style="width: 100%; margin-top: 10px;"><i class="fa-solid fa-check"></i> Выбрать это описание</button>
+                </div>
+                <!-- Новое описание -->
+                <div style="flex: 1; min-width: 250px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                        <span style="color: var(--gray300); font-weight: bold;">Новое описание</span>
+                        <span class="fa-solid fa-pencil" style="color: var(--gray400);" title="Редактируемое поле"></span>
+                    </div>
+                    <textarea id="portraitbank_compare_new" style="width: 100%; min-height: 200px; padding: 10px; border-radius: 8px; background: var(--black50a); color: var(--white); border: 1px solid var(--gray500);"></textarea>
+                    <button id="portraitbank_choose_new" class="menu_button" style="width: 100%; margin-top: 10px;"><i class="fa-solid fa-check"></i> Выбрать это описание</button>
+                </div>
+            </div>
+            <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
+                <button id="portraitbank_compare_cancel" class="menu_button">Отмена</button>
+            </div>
+        </div>
+        <div id="portraitbank_compare_overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9998;"></div>
+    `;
+    $('body').append(modalHtml);
+}
+
+function openCompareModal(oldText, newText) {
+    $('#portraitbank_compare_old').val(oldText);
+    $('#portraitbank_compare_new').val(newText);
+    $('#portraitbank_compare_modal, #portraitbank_compare_overlay').fadeIn(200);
+}
+
+function closeCompareModal() {
+    $('#portraitbank_compare_modal, #portraitbank_compare_overlay').fadeOut(200);
+}
+
 // ----- AI Generation of description (quiet prompt) --------------------
 async function generateDescriptionFromPrompt(promptText = '') {
     const ctx = SillyTavern.getContext();
     const settings = getSettings();
 
-    // Если пользователь ничего не ввёл – используем только инструкцию
     const finalPrompt = promptText?.trim()
         ? ctx.substituteParams(settings.generationPrompt + '\n\n' + promptText)
         : ctx.substituteParams(settings.generationPrompt);
@@ -95,9 +142,11 @@ async function generateDescriptionFromPrompt(promptText = '') {
         });
 
         if (generated?.trim()) {
-            setDescription(ctx.characterId, generated.trim());
-            toastr.success('Описание сгенерировано и сохранено!');
-            openModal(); // покажем результат
+            // Вместо автоматического сохранения – показываем окно сравнения
+            const oldDesc = getDescription(ctx.characterId);
+            const newDesc = generated.trim();
+            openCompareModal(oldDesc, newDesc);
+            toastr.success('Описание сгенерировано! Выберите вариант для сохранения.');
         } else {
             toastr.error('Не удалось сгенерировать описание');
         }
@@ -118,11 +167,9 @@ async function portraitImageCommand() {
         return;
     }
 
-    // Открываем вкладку Image Generation
     $('.character-popups .tab:contains("Image Generation")').trigger('click');
     await new Promise(r => setTimeout(r, 400));
 
-    // Заполняем поле sd_character_prompt
     const $field = $('#sd_character_prompt');
     if ($field.length) {
         $field.val(description).trigger('input').trigger('change');
@@ -132,7 +179,6 @@ async function portraitImageCommand() {
         return;
     }
 
-    // Нажимаем Yourself
     setTimeout(() => {
         const $btn = $('#yourself_button, button:contains("Yourself")').first();
         if ($btn.length) {
@@ -199,7 +245,6 @@ function createSettingsUI() {
 function bindSettingsUI() {
     const settings = getSettings();
 
-    // Сохранить инструкцию
     $('#portraitbank_save_prompt').on('click', function() {
         const newPrompt = $('#portraitbank_prompt_editor').val();
         settings.generationPrompt = newPrompt;
@@ -207,7 +252,6 @@ function bindSettingsUI() {
         toastr.success('Инструкция сохранена');
     });
 
-    // Сбросить инструкцию
     $('#portraitbank_reset_prompt').on('click', function() {
         $('#portraitbank_prompt_editor').val(defaultSettings.generationPrompt);
         settings.generationPrompt = defaultSettings.generationPrompt;
@@ -215,35 +259,29 @@ function bindSettingsUI() {
         toastr.info('Инструкция сброшена к умолчанию');
     });
 
-    // Temperature
     $('#portraitbank_temperature').on('input', function() {
         settings.modelParams.temperature = parseFloat($(this).val()) || 0.9;
         saveSettings();
     });
 
-    // Max tokens
     $('#portraitbank_max_tokens').on('input', function() {
         settings.modelParams.max_tokens = parseInt($(this).val()) || 400;
         saveSettings();
     });
 
-    // *** ИСПРАВЛЕНИЕ: Кнопка "Сгенерировать описание" теперь берёт инструкцию из поля ***
     $('#portraitbank_ui_generate').on('click', function() {
         toastr.info('⏳ Генерация описания...');
-        generateDescriptionFromPrompt(''); // пустая строка = использовать только инструкцию
+        generateDescriptionFromPrompt('');
     });
 
-    // Кнопка "Заполнить поле и сгенерировать изображение"
     $('#portraitbank_ui_image').on('click', function() {
         portraitImageCommand();
     });
 
-    // Кнопка "Редактировать описание" (открыть модалку)
     $('#portraitbank_ui_edit').on('click', function() {
         openModal();
     });
 
-    // Обновление информации о текущем персонаже
     function updateUIInfo() {
         const ctx = SillyTavern.getContext();
         const charName = ctx.characters?.[ctx.characterId]?.name || '—';
@@ -263,7 +301,6 @@ function registerCommands() {
 
     try {
         ctx.registerSlashCommand('portrait', openModal, [], '– открыть редактор описания внешности', true, true);
-        // Команда с диалогом – позволяет ввести дополнительные подсказки
         ctx.registerSlashCommand('portrait-generate', () => {
             const hint = prompt('Введите подсказки для генерации (можно оставить пустым):', '');
             if (hint !== null) generateDescriptionFromPrompt(hint);
@@ -321,8 +358,8 @@ function setupInjection() {
 
     getSettings();
     createModal();
+    createCompareModal(); // Создаём новое модальное окно при инициализации
 
-    // Register commands when context is ready
     function tryRegister() {
         if (SillyTavern.getContext()?.registerSlashCommand) {
             registerCommands();
@@ -349,7 +386,7 @@ function setupInjection() {
         }, 100);
     }
 
-    // Modal event handlers (global)
+    // Modal event handlers (main modal)
     $(document).off('click', '#portraitbank_save').on('click', '#portraitbank_save', function() {
         const ctx = SillyTavern.getContext();
         setDescription(ctx.characterId, $('#portraitbank_textarea').val());
@@ -357,4 +394,24 @@ function setupInjection() {
         closeModal();
     });
     $(document).off('click', '#portraitbank_cancel, #portraitbank_close, #portraitbank_overlay').on('click', '#portraitbank_cancel, #portraitbank_close, #portraitbank_overlay', closeModal);
+
+    // NEW: Compare modal event handlers
+    $(document).off('click', '#portraitbank_choose_old').on('click', '#portraitbank_choose_old', function() {
+        const ctx = SillyTavern.getContext();
+        const text = $('#portraitbank_compare_old').val();
+        setDescription(ctx.characterId, text);
+        toastr.success('Сохранено текущее описание');
+        closeCompareModal();
+        // Опционально: открыть основную модалку с сохранённым описанием
+        // openModal();
+    });
+    $(document).off('click', '#portraitbank_choose_new').on('click', '#portraitbank_choose_new', function() {
+        const ctx = SillyTavern.getContext();
+        const text = $('#portraitbank_compare_new').val();
+        setDescription(ctx.characterId, text);
+        toastr.success('Сохранено новое описание');
+        closeCompareModal();
+        // openModal();
+    });
+    $(document).off('click', '#portraitbank_compare_cancel, #portraitbank_compare_close, #portraitbank_compare_overlay').on('click', '#portraitbank_compare_cancel, #portraitbank_compare_close, #portraitbank_compare_overlay', closeCompareModal);
 })();
