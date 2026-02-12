@@ -36,19 +36,51 @@ function saveSettings() {
     SillyTavern.getContext().saveSettingsDebounced();
 }
 
-// ----- Description storage (per character) -----------------------------
-function getDescription(charId) {
+// ----- Description storage (per character) – теперь объект {positive, negative} -----
+function getDescriptionObject(charId) {
     const settings = getSettings();
-    return settings[charId] || '';
+    let value = settings[charId];
+
+    // Миграция: если раньше хранилась строка – конвертируем в объект
+    if (typeof value === 'string') {
+        const obj = { positive: value, negative: '' };
+        settings[charId] = obj;
+        saveSettings();
+        return obj;
+    }
+
+    // Уже объект с нужными полями
+    if (value && typeof value === 'object' && 'positive' in value && 'negative' in value) {
+        return value;
+    }
+
+    // Ничего не сохранено – возвращаем пустой объект и сохраняем
+    const obj = { positive: '', negative: '' };
+    settings[charId] = obj;
+    return obj;
 }
 
-function setDescription(charId, text) {
-    const settings = getSettings();
-    settings[charId] = text;
+function getPositiveDescription(charId) {
+    return getDescriptionObject(charId).positive;
+}
+
+function setPositiveDescription(charId, text) {
+    const obj = getDescriptionObject(charId);
+    obj.positive = text;
     saveSettings();
 }
 
-// ----- ADAPTIVE: Modal window (main PortraitBank editor) --------------
+function getNegativeDescription(charId) {
+    return getDescriptionObject(charId).negative;
+}
+
+function setNegativeDescription(charId, text) {
+    const obj = getDescriptionObject(charId);
+    obj.negative = text;
+    saveSettings();
+}
+
+// ----- ADAPTIVE: Modal window (главный редактор PortraitBank с двумя полями) -----
 function createModal() {
     if (document.getElementById('portraitbank_modal')) return;
     const modalHtml = `
@@ -57,10 +89,26 @@ function createModal() {
                 <span style="font-size: 18px; font-weight: bold; color: var(--white);"><i class="fa-solid fa-image-portrait"></i> PortraitBank</span>
                 <span id="portraitbank_close" style="cursor: pointer; font-size: 24px; color: var(--gray400);">&times;</span>
             </div>
-            <textarea id="portraitbank_textarea" style="width: 100%; min-height: 120px; padding: 10px; border-radius: 8px; background: var(--black50a); color: var(--white); border: 1px solid var(--gray500);" placeholder="Опишите внешность персонажа..."></textarea>
+
+            <!-- Positive prompt field -->
+            <div style="margin-bottom: 15px;">
+                <label style="color: var(--gray300); font-size: 14px; margin-bottom: 5px; display: block;">
+                    <i class="fa-solid fa-pencil"></i> Positive prompt prefix (Character appearance)
+                </label>
+                <textarea id="portraitbank_textarea_positive" style="width: 100%; min-height: 120px; padding: 10px; border-radius: 8px; background: var(--black50a); color: var(--white); border: 1px solid var(--gray500);" placeholder="Describe character appearance..."></textarea>
+            </div>
+
+            <!-- Negative prompt field -->
+            <div style="margin-bottom: 15px;">
+                <label style="color: var(--gray300); font-size: 14px; margin-bottom: 5px; display: block;">
+                    <i class="fa-solid fa-ban"></i> Negative prompt prefix (Things to avoid)
+                </label>
+                <textarea id="portraitbank_textarea_negative" style="width: 100%; min-height: 80px; padding: 10px; border-radius: 8px; background: var(--black50a); color: var(--white); border: 1px solid var(--gray500);" placeholder="Describe what to avoid in generation..."></textarea>
+            </div>
+
             <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 15px;">
-                <button id="portraitbank_save" class="menu_button">Сохранить</button>
-                <button id="portraitbank_cancel" class="menu_button">Отмена</button>
+                <button id="portraitbank_save" class="menu_button">Save</button>
+                <button id="portraitbank_cancel" class="menu_button">Cancel</button>
             </div>
         </div>
         <div id="portraitbank_overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9998;"></div>
@@ -70,19 +118,18 @@ function createModal() {
 
 function openModal() {
     const ctx = SillyTavern.getContext();
-    const description = getDescription(ctx.characterId);
+    const descObj = getDescriptionObject(ctx.characterId);
     const $modal = $('#portraitbank_modal');
     const $overlay = $('#portraitbank_overlay');
-    
-    // Устанавливаем текст
-    $('#portraitbank_textarea').val(description);
-    
+
+    // Загружаем оба описания
+    $('#portraitbank_textarea_positive').val(descObj.positive);
+    $('#portraitbank_textarea_negative').val(descObj.negative);
+
     // Адаптивные стили под мобильные/десктоп
     const isMobile = window.innerWidth <= 600;
-    
-    // Сбрасываем ранее добавленные inline-стили, оставляя базовые
     $modal.attr('style', 'display: none; position: fixed; border: 2px solid var(--primary); border-radius: 12px; padding: 20px; z-index: 9999; box-shadow: 0 0 20px rgba(0,0,0,0.7);');
-    
+
     if (isMobile) {
         $modal.css({
             top: '10px',
@@ -99,14 +146,14 @@ function openModal() {
             top: '50%',
             left: '50%',
             transform: 'translate(-50%, -50%)',
-            width: '400px',
+            width: '500px',  // немного шире для двух полей
             maxWidth: '90%',
             background: 'var(--surface)',
             maxHeight: 'none',
             overflowY: 'visible',
         });
     }
-    
+
     $modal.fadeIn(200);
     $overlay.fadeIn(200);
 }
@@ -115,18 +162,18 @@ function closeModal() {
     $('#portraitbank_modal, #portraitbank_overlay').fadeOut(200);
 }
 
-// ----- ADAPTIVE: Compare Modal (desktop: two columns, mobile: top‑aligned, semi‑transparent) -----
+// ----- ADAPTIVE: Compare Modal (без изменений, работает только с positive) -----
 function createCompareModal() {
     if (document.getElementById('portraitbank_compare_modal')) return;
     const modalHtml = `
         <div id="portraitbank_compare_modal" style="display: none; position: fixed; background: var(--surface); border: 2px solid var(--primary); padding: 0; z-index: 9999; box-shadow: 0 0 20px rgba(0,0,0,0.7);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 20px 20px 0 20px;">
-                <span style="font-size: 18px; font-weight: bold; color: var(--white);"><i class="fa-solid fa-code-compare"></i> PortraitBank – Сравнение</span>
+                <span style="font-size: 18px; font-weight: bold; color: var(--white);"><i class="fa-solid fa-code-compare"></i> PortraitBank – Compare</span>
                 <span id="portraitbank_compare_close" style="cursor: pointer; font-size: 24px; color: var(--gray400);">&times;</span>
             </div>
             <div id="portraitbank_compare_content" style="padding: 0 20px;"></div>
             <div style="display: flex; justify-content: flex-end; padding: 20px;">
-                <button id="portraitbank_compare_cancel" class="menu_button">Отмена</button>
+                <button id="portraitbank_compare_cancel" class="menu_button">Cancel</button>
             </div>
         </div>
         <div id="portraitbank_compare_overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9998;"></div>
@@ -147,6 +194,7 @@ function openCompareModal(oldText, newText) {
     modal.attr('style', 'display: none; position: fixed; border: 2px solid var(--primary); padding: 0; z-index: 9999; box-shadow: 0 0 20px rgba(0,0,0,0.7);');
 
     if (isMobile) {
+        // ... мобильная версия без изменений, только вызов setPositiveDescription
         modal.css({
             top: '10px',
             left: '5%',
@@ -163,23 +211,23 @@ function openCompareModal(oldText, newText) {
         const mobileHtml = `
             <div style="display: flex; flex-direction: column; gap: 16px;">
                 <div style="display: flex; border-bottom: 1px solid var(--gray600);">
-                    <div id="portraitbank_tab_old" style="flex: 1; text-align: center; padding: 10px; cursor: pointer; border-bottom: 3px solid var(--primary); color: var(--primary); font-weight: bold;">Текущее</div>
-                    <div id="portraitbank_tab_new" style="flex: 1; text-align: center; padding: 10px; cursor: pointer; border-bottom: 3px solid transparent; color: var(--gray300); font-weight: bold;">Новое</div>
+                    <div id="portraitbank_tab_old" style="flex: 1; text-align: center; padding: 10px; cursor: pointer; border-bottom: 3px solid var(--primary); color: var(--primary); font-weight: bold;">Current</div>
+                    <div id="portraitbank_tab_new" style="flex: 1; text-align: center; padding: 10px; cursor: pointer; border-bottom: 3px solid transparent; color: var(--gray300); font-weight: bold;">New</div>
                 </div>
                 <textarea id="portraitbank_compare_textarea" 
                     style="width: 100%; min-height: 180px; padding: 12px; border-radius: 8px; background: var(--black50a); color: var(--white); border: 1px solid var(--gray500); font-size: 16px; resize: vertical; box-sizing: border-box;"
                 >${oldText}</textarea>
                 <button id="portraitbank_choose_mobile" class="menu_button" style="width: 100%; padding: 12px; font-size: 16px;">
-                    <i class="fa-solid fa-check"></i> Выбрать это описание
+                    <i class="fa-solid fa-check"></i> Choose this description
                 </button>
                 <p style="color: var(--gray400); font-size: 12px; margin: 0 0 10px 0;">
-                    <i class="fa-solid fa-arrows-left-right"></i> Свайп по тексту для переключения
+                    <i class="fa-solid fa-arrows-left-right"></i> Swipe text to switch
                 </p>
             </div>
         `;
         contentDiv.empty().append(mobileHtml);
 
-        // --- Обработчики вкладок ---
+        // --- Tab handlers ---
         $('#portraitbank_tab_old').off().on('click', function() {
             activeTab = 'old';
             $('#portraitbank_compare_textarea').val(currentOldText);
@@ -193,7 +241,7 @@ function openCompareModal(oldText, newText) {
             $('#portraitbank_tab_old').css({ 'border-bottom-color': 'transparent', 'color': 'var(--gray300)' });
         });
 
-        // --- Обработчик свайпа ---
+        // --- Swipe handler ---
         let touchStartX = 0;
         const textarea = document.getElementById('portraitbank_compare_textarea');
         if (textarea) {
@@ -215,16 +263,16 @@ function openCompareModal(oldText, newText) {
             textarea.addEventListener('touchend', textarea._touchEnd, { passive: true });
         }
 
-        // --- Кнопка выбора ---
+        // --- Mobile choose button – сохраняем ТОЛЬКО положительное описание ---
         $('#portraitbank_choose_mobile').off().on('click', function() {
             const ctx = SillyTavern.getContext();
-            setDescription(ctx.characterId, $('#portraitbank_compare_textarea').val());
-            toastr.success(`Сохранено ${activeTab === 'old' ? 'текущее' : 'новое'} описание`);
+            setPositiveDescription(ctx.characterId, $('#portraitbank_compare_textarea').val());
+            toastr.success(`Saved ${activeTab === 'old' ? 'current' : 'new'} description`);
             closeCompareModal();
         });
 
     } else {
-        // --- ДЕСКТОПНЫЙ РЕЖИМ: два столбца, центрированное окно ---
+        // --- DESKTOP: два столбца, центрированное окно ---
         modal.css({
             top: '50%',
             left: '50%',
@@ -242,34 +290,35 @@ function openCompareModal(oldText, newText) {
             <div style="display: flex; gap: 20px; flex-wrap: wrap;">
                 <div style="flex: 1; min-width: 250px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                        <span style="color: var(--gray300); font-weight: bold;">Текущее описание</span>
-                        <span class="fa-solid fa-pencil" style="color: var(--gray400);" title="Редактируемое поле"></span>
+                        <span style="color: var(--gray300); font-weight: bold;">Current description</span>
+                        <span class="fa-solid fa-pencil" style="color: var(--gray400);" title="Editable field"></span>
                     </div>
                     <textarea id="portraitbank_compare_old" style="width: 100%; min-height: 200px; padding: 10px; border-radius: 8px; background: var(--black50a); color: var(--white); border: 1px solid var(--gray500);">${oldText}</textarea>
-                    <button id="portraitbank_choose_old" class="menu_button" style="width: 100%; margin-top: 10px;"><i class="fa-solid fa-check"></i> Выбрать это описание</button>
+                    <button id="portraitbank_choose_old" class="menu_button" style="width: 100%; margin-top: 10px;"><i class="fa-solid fa-check"></i> Choose this description</button>
                 </div>
                 <div style="flex: 1; min-width: 250px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                        <span style="color: var(--gray300); font-weight: bold;">Новое описание</span>
-                        <span class="fa-solid fa-pencil" style="color: var(--gray400);" title="Редактируемое поле"></span>
+                        <span style="color: var(--gray300); font-weight: bold;">New description</span>
+                        <span class="fa-solid fa-pencil" style="color: var(--gray400);" title="Editable field"></span>
                     </div>
                     <textarea id="portraitbank_compare_new" style="width: 100%; min-height: 200px; padding: 10px; border-radius: 8px; background: var(--black50a); color: var(--white); border: 1px solid var(--gray500);">${newText}</textarea>
-                    <button id="portraitbank_choose_new" class="menu_button" style="width: 100%; margin-top: 10px;"><i class="fa-solid fa-check"></i> Выбрать это описание</button>
+                    <button id="portraitbank_choose_new" class="menu_button" style="width: 100%; margin-top: 10px;"><i class="fa-solid fa-check"></i> Choose this description</button>
                 </div>
             </div>
         `;
         contentDiv.empty().append(desktopHtml);
 
+        // --- Desktop choose buttons – сохраняем положительное описание ---
         $('#portraitbank_choose_old').off().on('click', function() {
             const ctx = SillyTavern.getContext();
-            setDescription(ctx.characterId, $('#portraitbank_compare_old').val());
-            toastr.success('Сохранено текущее описание');
+            setPositiveDescription(ctx.characterId, $('#portraitbank_compare_old').val());
+            toastr.success('Saved current description');
             closeCompareModal();
         });
         $('#portraitbank_choose_new').off().on('click', function() {
             const ctx = SillyTavern.getContext();
-            setDescription(ctx.characterId, $('#portraitbank_compare_new').val());
-            toastr.success('Сохранено новое описание');
+            setPositiveDescription(ctx.characterId, $('#portraitbank_compare_new').val());
+            toastr.success('Saved new description');
             closeCompareModal();
         });
     }
@@ -282,7 +331,7 @@ function closeCompareModal() {
     $('#portraitbank_compare_modal, #portraitbank_compare_overlay').fadeOut(200);
 }
 
-// ----- AI Generation of description (quiet prompt) --------------------
+// ----- AI Generation of description (quiet prompt) – работает только с positive -----
 async function generateDescriptionFromPrompt(promptText = '') {
     const ctx = SillyTavern.getContext();
     const settings = getSettings();
@@ -293,7 +342,7 @@ async function generateDescriptionFromPrompt(promptText = '') {
 
     try {
         if (typeof ctx.generateQuietPrompt !== 'function') {
-            throw new Error('generateQuietPrompt не доступен. Обновите SillyTavern.');
+            throw new Error('generateQuietPrompt is not available. Update SillyTavern.');
         }
 
         const generated = await ctx.generateQuietPrompt(finalPrompt, false, null, null, false, {
@@ -302,57 +351,68 @@ async function generateDescriptionFromPrompt(promptText = '') {
         });
 
         if (generated?.trim()) {
-            const oldDesc = getDescription(ctx.characterId);
+            const oldDesc = getPositiveDescription(ctx.characterId);
             const newDesc = generated.trim();
             openCompareModal(oldDesc, newDesc);
-            toastr.success('Описание сгенерировано! Выберите вариант.');
+            toastr.success('Description generated! Choose a version.');
         } else {
-            toastr.error('Не удалось сгенерировать описание');
+            toastr.error('Failed to generate description');
         }
     } catch (error) {
         console.error('[PortraitBank] Generation error:', error);
-        toastr.error(`Ошибка генерации: ${error.message}`);
+        toastr.error(`Generation error: ${error.message}`);
     }
 }
 
-// ----- Command: set prompt prefix and generate image via /sd you -----
+// ----- Command: set prompt prefix (positive + negative) and generate image via /sd you -----
 async function portraitImageCommand() {
     const ctx = SillyTavern.getContext();
     const charId = ctx.characterId;
-    const description = getDescription(charId);
+    const positiveDesc = getPositiveDescription(charId);
+    const negativeDesc = getNegativeDescription(charId);
 
-    if (!description.trim()) {
-        toastr.warning('❌ Нет описания для этого персонажа. Создайте его через /portrait или /portrait-generate');
+    if (!positiveDesc.trim()) {
+        toastr.warning('❌ No positive description for this character. Create it via /portrait or /portrait-generate');
         return;
     }
 
-    // 1. Заполняем поле Character-specific prompt prefix (визуально)
+    // 1. Активируем вкладку Image Generation
     $('.character-popups .tab:contains("Image Generation")').trigger('click');
     await new Promise(r => setTimeout(r, 400));
 
-    const $field = $('#sd_character_prompt');
-    if ($field.length) {
-        $field.val(description).trigger('input').trigger('change');
-        toastr.success('✅ Prompt prefix установлен');
+    // 2. Устанавливаем POSITIVE prompt
+    const $positiveField = $('#sd_character_prompt');
+    if ($positiveField.length) {
+        $positiveField.val(positiveDesc).trigger('input').trigger('change');
+        toastr.success('✅ Positive prompt prefix set');
     } else {
-        console.warn('[PortraitBank] Поле #sd_character_prompt не найдено, но команда /sd you будет выполнена');
+        console.warn('[PortraitBank] Field #sd_character_prompt not found');
     }
 
-    // 2. Запускаем генерацию изображения через встроенную команду /sd you (работает везде)
+    // 3. Устанавливаем NEGATIVE prompt
+    const $negativeField = $('#sd_character_negative_prompt');
+    if ($negativeField.length) {
+        $negativeField.val(negativeDesc).trigger('input').trigger('change');
+        toastr.success('✅ Negative prompt prefix set');
+    } else {
+        console.warn('[PortraitBank] Field #sd_character_negative_prompt not found – negative prompt not set');
+    }
+
+    // 4. Запускаем генерацию изображения
     try {
         if (typeof ctx.executeSlashCommands !== 'function') {
-            throw new Error('Функция executeSlashCommands не найдена. Обновите SillyTavern.');
+            throw new Error('executeSlashCommands function not found. Update SillyTavern.');
         }
 
         await ctx.executeSlashCommands('/sd you');
-        toastr.success('🎨 Команда /sd you выполнена. Изображение генерируется.');
+        toastr.success('🎨 Command /sd you executed. Image generation started.');
     } catch (e) {
-        console.error('[PortraitBank] Ошибка выполнения /sd you:', e);
-        toastr.error(`❌ Ошибка генерации: ${e.message}. Попробуйте выполнить /sd you вручную.`);
+        console.error('[PortraitBank] Error executing /sd you:', e);
+        toastr.error(`❌ Generation error: ${e.message}. Try to run /sd you manually.`);
     }
 }
 
-// ----- UI Settings Panel (Extensions tab) ----------------------------
+// ----- UI Settings Panel (Extensions tab) – без изменений, только заменён getDescription -> getPositiveDescription -----
 function createSettingsUI() {
     const settings = getSettings();
     const container = document.getElementById('extensions_settings');
@@ -361,20 +421,20 @@ function createSettingsUI() {
     const html = `
         <div class="inline-drawer">
             <div class="inline-drawer-toggle inline-drawer-header">
-                <b>PortraitBank – генерация описаний внешности</b>
+                <b>PortraitBank – appearance description generator</b>
                 <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
             </div>
             <div class="inline-drawer-content">
                 <div class="iig-settings" style="padding: 10px;">
-                    <h4>Инструкция для генерации описания</h4>
-                    <p class="hint">Этот промпт отправляется AI вместе с вашими подсказками. Используйте {{char}}, {{gender}} и другие макросы.</p>
+                    <h4>Generation prompt</h4>
+                    <p class="hint">This prompt is sent to AI together with your hints. Use {{char}}, {{gender}} and other macros.</p>
                     <textarea id="portraitbank_prompt_editor" class="text_pole" style="width:100%; min-height:150px; font-family:monospace;">${settings.generationPrompt.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
                     <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:10px;">
-                        <button id="portraitbank_save_prompt" class="menu_button"><i class="fa-solid fa-save"></i> Сохранить инструкцию</button>
-                        <button id="portraitbank_reset_prompt" class="menu_button"><i class="fa-solid fa-undo"></i> Сбросить</button>
+                        <button id="portraitbank_save_prompt" class="menu_button"><i class="fa-solid fa-save"></i> Save prompt</button>
+                        <button id="portraitbank_reset_prompt" class="menu_button"><i class="fa-solid fa-undo"></i> Reset</button>
                     </div>
                     <hr>
-                    <h4>Параметры генерации</h4>
+                    <h4>Generation parameters</h4>
                     <div class="flex-row">
                         <label for="portraitbank_temperature">Temperature</label>
                         <input type="number" id="portraitbank_temperature" class="text_pole flex1" value="${settings.modelParams.temperature}" min="0.1" max="2.0" step="0.1">
@@ -384,13 +444,13 @@ function createSettingsUI() {
                         <input type="number" id="portraitbank_max_tokens" class="text_pole flex1" value="${settings.modelParams.max_tokens}" min="100" max="1000" step="50">
                     </div>
                     <hr>
-                    <h4>Действия</h4>
+                    <h4>Actions</h4>
                     <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                        <button id="portraitbank_ui_generate" class="menu_button"><i class="fa-solid fa-wand-magic-sparkles"></i> Сгенерировать описание</button>
-                        <button id="portraitbank_ui_image" class="menu_button"><i class="fa-solid fa-image"></i> Заполнить поле и сгенерировать изображение</button>
-                        <button id="portraitbank_ui_edit" class="menu_button"><i class="fa-solid fa-pencil"></i> Редактировать описание</button>
+                        <button id="portraitbank_ui_generate" class="menu_button"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate description</button>
+                        <button id="portraitbank_ui_image" class="menu_button"><i class="fa-solid fa-image"></i> Fill prompt fields & generate image</button>
+                        <button id="portraitbank_ui_edit" class="menu_button"><i class="fa-solid fa-pencil"></i> Edit description</button>
                     </div>
-                    <p class="hint" style="margin-top:10px;">Текущий персонаж: <span id="portraitbank_current_char">—</span>, описание: <span id="portraitbank_current_desc_preview">—</span></p>
+                    <p class="hint" style="margin-top:10px;">Current character: <span id="portraitbank_current_char">—</span>, positive description: <span id="portraitbank_current_desc_preview">—</span></p>
                 </div>
             </div>
         </div>
@@ -407,14 +467,14 @@ function bindSettingsUI() {
         const newPrompt = $('#portraitbank_prompt_editor').val();
         settings.generationPrompt = newPrompt;
         saveSettings();
-        toastr.success('Инструкция сохранена');
+        toastr.success('Prompt saved');
     });
 
     $('#portraitbank_reset_prompt').on('click', function() {
         $('#portraitbank_prompt_editor').val(defaultSettings.generationPrompt);
         settings.generationPrompt = defaultSettings.generationPrompt;
         saveSettings();
-        toastr.info('Инструкция сброшена к умолчанию');
+        toastr.info('Prompt reset to default');
     });
 
     $('#portraitbank_temperature').on('input', function() {
@@ -428,7 +488,7 @@ function bindSettingsUI() {
     });
 
     $('#portraitbank_ui_generate').on('click', function() {
-        toastr.info('⏳ Генерация описания...');
+        toastr.info('⏳ Generating description...');
         generateDescriptionFromPrompt('');
     });
 
@@ -443,8 +503,8 @@ function bindSettingsUI() {
     function updateUIInfo() {
         const ctx = SillyTavern.getContext();
         const charName = ctx.characters?.[ctx.characterId]?.name || '—';
-        const desc = getDescription(ctx.characterId);
-        const preview = desc.length > 50 ? desc.substring(0, 50) + '…' : desc || 'пусто';
+        const desc = getPositiveDescription(ctx.characterId);
+        const preview = desc.length > 50 ? desc.substring(0, 50) + '…' : desc || 'empty';
         $('#portraitbank_current_char').text(charName);
         $('#portraitbank_current_desc_preview').text(preview);
     }
@@ -459,17 +519,17 @@ function bindSettingsUI() {
     }
 }
 
-// ----- Slash Commands ------------------------------------------------
+// ----- Slash Commands -------------------------------------------------
 function registerCommands() {
     const ctx = SillyTavern.getContext();
 
     try {
-        ctx.registerSlashCommand('portrait', openModal, [], '– открыть редактор описания внешности', true, true);
+        ctx.registerSlashCommand('portrait', openModal, [], '– open appearance description editor (positive + negative)', true, true);
         ctx.registerSlashCommand('portrait-generate', () => {
-            const hint = prompt('Введите подсказки для генерации (можно оставить пустым):', '');
+            const hint = prompt('Enter hints for generation (can be empty):', '');
             if (hint !== null) generateDescriptionFromPrompt(hint);
-        }, ['portrait-gen'], '– сгенерировать описание через AI (укажите подсказки в диалоге)', true, false);
-        ctx.registerSlashCommand('portrait-image', portraitImageCommand, ['portrait-img'], '– записать описание в промпт-префикс и запустить /sd you', true, false);
+        }, ['portrait-gen'], '– generate positive description via AI (enter hints in dialog)', true, false);
+        ctx.registerSlashCommand('portrait-image', portraitImageCommand, ['portrait-img'], '– write positive/negative descriptions to prompt prefix fields and run /sd you', true, false);
         console.log('[PortraitBank] Slash commands registered');
     } catch (e) {
         console.error('[PortraitBank] Failed to register commands:', e);
@@ -499,11 +559,11 @@ function addUserMenuButton() {
     });
 }
 
-// ----- Inject prompt into generation ---------------------------------
+// ----- Inject positive prompt into text generation --------------------
 function setupInjection() {
     const ctx = SillyTavern.getContext();
     ctx.eventSource.on(ctx.eventTypes.GENERATION_STARTED, () => {
-        const desc = getDescription(ctx.characterId);
+        const desc = getPositiveDescription(ctx.characterId);
         if (desc.trim()) {
             ctx.setExtensionPrompt(
                 MODULE_NAME,
@@ -550,11 +610,14 @@ function setupInjection() {
         }, 100);
     }
 
-    // ----- Обработчики основной модалки -----
+    // ----- Обработчики основной модалки (с двумя полями) -----
     $(document).off('click', '#portraitbank_save').on('click', '#portraitbank_save', function() {
         const ctx = SillyTavern.getContext();
-        setDescription(ctx.characterId, $('#portraitbank_textarea').val());
-        toastr.success('Описание сохранено');
+        const positive = $('#portraitbank_textarea_positive').val();
+        const negative = $('#portraitbank_textarea_negative').val();
+        setPositiveDescription(ctx.characterId, positive);
+        setNegativeDescription(ctx.characterId, negative);
+        toastr.success('Descriptions saved');
         closeModal();
     });
     $(document).off('click', '#portraitbank_cancel, #portraitbank_close, #portraitbank_overlay').on('click', '#portraitbank_cancel, #portraitbank_close, #portraitbank_overlay', closeModal);
