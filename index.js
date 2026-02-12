@@ -37,12 +37,12 @@ function saveSettings() {
 }
 
 // ----- Description storage (positive and negative) ---------------------
-function getDescription(charId) {
+function getPositiveDescription(charId) {
     const settings = getSettings();
     return settings[charId]?.positive || '';
 }
 
-function setDescription(charId, text) {
+function setPositiveDescription(charId, text) {
     const settings = getSettings();
     if (!settings[charId]) settings[charId] = {};
     settings[charId].positive = text;
@@ -61,7 +61,7 @@ function setNegativeDescription(charId, text) {
     saveSettings();
 }
 
-// ----- ЕДИНОЕ АДАПТИВНОЕ ОКНО РЕДАКТИРОВАНИЯ (Positive + Negative) ---
+// ----- ЕДИНОЕ АДАПТИВНОЕ ОКНО РЕДАКТИРОВАНИЯ (Positive + Negative) ----
 function createModal() {
     if (document.getElementById('portraitbank_modal')) return;
     const modalHtml = `
@@ -93,7 +93,7 @@ function createModal() {
 
 function openModal() {
     const ctx = SillyTavern.getContext();
-    const positive = getDescription(ctx.characterId);
+    const positive = getPositiveDescription(ctx.characterId);
     const negative = getNegativeDescription(ctx.characterId);
     const $modal = $('#portraitbank_modal');
     const $overlay = $('#portraitbank_overlay');
@@ -136,7 +136,7 @@ function closeModal() {
     $('#portraitbank_modal, #portraitbank_overlay').fadeOut(200);
 }
 
-// ----- ADAPTIVE: Compare Modal (positive generation) -------------------
+// ----- ADAPTIVE: Compare Modal (desktop: two columns, mobile: top‑aligned, semi‑transparent) -----
 function createCompareModal() {
     if (document.getElementById('portraitbank_compare_modal')) return;
     const modalHtml = `
@@ -236,7 +236,7 @@ function openCompareModal(oldText, newText) {
 
         $('#portraitbank_choose_mobile').off().on('click', function() {
             const ctx = SillyTavern.getContext();
-            setDescription(ctx.characterId, $('#portraitbank_compare_textarea').val());
+            setPositiveDescription(ctx.characterId, $('#portraitbank_compare_textarea').val());
             toastr.success(`Сохранено ${activeTab === 'old' ? 'текущее' : 'новое'} описание`);
             closeCompareModal();
         });
@@ -279,13 +279,13 @@ function openCompareModal(oldText, newText) {
 
         $('#portraitbank_choose_old').off().on('click', function() {
             const ctx = SillyTavern.getContext();
-            setDescription(ctx.characterId, $('#portraitbank_compare_old').val());
+            setPositiveDescription(ctx.characterId, $('#portraitbank_compare_old').val());
             toastr.success('Сохранено текущее описание');
             closeCompareModal();
         });
         $('#portraitbank_choose_new').off().on('click', function() {
             const ctx = SillyTavern.getContext();
-            setDescription(ctx.characterId, $('#portraitbank_compare_new').val());
+            setPositiveDescription(ctx.characterId, $('#portraitbank_compare_new').val());
             toastr.success('Сохранено новое описание');
             closeCompareModal();
         });
@@ -319,7 +319,7 @@ async function generateDescriptionFromPrompt(promptText = '') {
         });
 
         if (generated?.trim()) {
-            const oldDesc = getDescription(ctx.characterId);
+            const oldDesc = getPositiveDescription(ctx.characterId);
             const newDesc = generated.trim();
             openCompareModal(oldDesc, newDesc);
             toastr.success('Описание сгенерировано! Выберите вариант.');
@@ -336,7 +336,7 @@ async function generateDescriptionFromPrompt(promptText = '') {
 async function portraitImageCommand() {
     const ctx = SillyTavern.getContext();
     const charId = ctx.characterId;
-    const positive = getDescription(charId);
+    const positive = getPositiveDescription(charId);
     const negative = getNegativeDescription(charId);
 
     if (!positive.trim()) {
@@ -404,9 +404,7 @@ function createSettingsUI() {
                         <button id="portraitbank_save_prompt" class="menu_button"><i class="fa-solid fa-save"></i> Сохранить инструкцию</button>
                         <button id="portraitbank_reset_prompt" class="menu_button"><i class="fa-solid fa-undo"></i> Сбросить</button>
                     </div>
-                    
                     <hr>
-                    
                     <h4>Параметры генерации</h4>
                     <div class="flex-row">
                         <label for="portraitbank_temperature">Temperature</label>
@@ -416,9 +414,7 @@ function createSettingsUI() {
                         <label for="portraitbank_max_tokens">Max tokens</label>
                         <input type="number" id="portraitbank_max_tokens" class="text_pole flex1" value="${settings.modelParams.max_tokens}" min="100" max="1000" step="50">
                     </div>
-                    
                     <hr>
-                    
                     <h4>Действия</h4>
                     <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                         <button id="portraitbank_ui_generate" class="menu_button"><i class="fa-solid fa-wand-magic-sparkles"></i> Сгенерировать описание</button>
@@ -442,47 +438,47 @@ function createSettingsUI() {
 function bindSettingsUI() {
     const settings = getSettings();
 
-    // Инструкция
     $('#portraitbank_save_prompt').on('click', function() {
         const newPrompt = $('#portraitbank_prompt_editor').val();
         settings.generationPrompt = newPrompt;
         saveSettings();
         toastr.success('Инструкция сохранена');
     });
+
     $('#portraitbank_reset_prompt').on('click', function() {
         $('#portraitbank_prompt_editor').val(defaultSettings.generationPrompt);
         settings.generationPrompt = defaultSettings.generationPrompt;
         saveSettings();
-        toastr.info('Инструкция сброшена');
+        toastr.info('Инструкция сброшена к умолчанию');
     });
 
-    // Температура / max tokens
     $('#portraitbank_temperature').on('input', function() {
         settings.modelParams.temperature = parseFloat($(this).val()) || 0.9;
         saveSettings();
     });
+
     $('#portraitbank_max_tokens').on('input', function() {
         settings.modelParams.max_tokens = parseInt($(this).val()) || 400;
         saveSettings();
     });
 
-    // Кнопки действий
     $('#portraitbank_ui_generate').on('click', function() {
         toastr.info('⏳ Генерация описания...');
         generateDescriptionFromPrompt('');
     });
+
     $('#portraitbank_ui_image').on('click', function() {
         portraitImageCommand();
     });
+
     $('#portraitbank_ui_edit').on('click', function() {
         openModal();
     });
 
-    // Обновление информации о текущем персонаже
     function updateUIInfo() {
         const ctx = SillyTavern.getContext();
         const charName = ctx.characters?.[ctx.characterId]?.name || '—';
-        const positive = getDescription(ctx.characterId);
+        const positive = getPositiveDescription(ctx.characterId);
         const negative = getNegativeDescription(ctx.characterId);
         const posPreview = positive.length > 50 ? positive.substring(0, 50) + '…' : positive || 'пусто';
         const negPreview = negative.length > 50 ? negative.substring(0, 50) + '…' : negative || 'пусто';
@@ -545,18 +541,16 @@ function addUserMenuButton() {
 function setupInjection() {
     const ctx = SillyTavern.getContext();
     ctx.eventSource.on(ctx.eventTypes.GENERATION_STARTED, () => {
-        const positive = getDescription(ctx.characterId);
-        const negative = getNegativeDescription(ctx.characterId);
+        const positive = getPositiveDescription(ctx.characterId);
         if (positive.trim()) {
             ctx.setExtensionPrompt(
-                MODULE_NAME + '_positive',
+                MODULE_NAME,
                 `[Character appearance: ${positive.trim()}]`,
                 'after_context',
                 15,
                 'system'
             );
         }
-        // Негативный промпт не добавляем в системный, он через поле
     });
 }
 
@@ -599,7 +593,7 @@ function setupInjection() {
         const ctx = SillyTavern.getContext();
         const positive = $('#portraitbank_textarea').val();
         const negative = $('#portraitbank_negative_textarea').val();
-        setDescription(ctx.characterId, positive);
+        setPositiveDescription(ctx.characterId, positive);
         setNegativeDescription(ctx.characterId, negative);
         toastr.success('Положительный и отрицательный промпты сохранены');
         closeModal();
