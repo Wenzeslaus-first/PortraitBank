@@ -1,243 +1,314 @@
+// ================================
+// PortraitBank Extension for SillyTavern
+// ================================
 export const MODULE_NAME = 'PortraitBank';
 
-jQuery(async () => {
+// ----- Default settings -------------------------------------------------
+const defaultSettings = Object.freeze({
+    generationPrompt: `Based on {{char}}'s gender being "{{gender}}", write at the very beginning: "1 boy" if the gender is male, or "1 girl" if the gender is female. as a single humanoid character. Do NOT include any separate animals, pets, or unrelated objects in the description. Describe only what is physically part of the character. provide only a detailed comma-delimited list of keywords and phrases which describe {{char}}. The list must include all of the following items in this order: species and race, gender, age, clothing, occupation, physical features and appearances. Do not include descriptions of non-visual qualities such as personality, movements, scents, mental traits, or anything which could not be seen in a still photograph. Do not write in full sentences. Prefix your description with the phrase 'full body portrait,'`,
+    modelParams: {
+        temperature: 0.9,
+        max_tokens: 400,
+    },
+});
+
+// ----- Settings management ---------------------------------------------
+function getSettings() {
     const context = SillyTavern.getContext();
-    const { extensionSettings, saveSettingsDebounced, eventSource, eventTypes, substituteParams } = context;
-
-    // ----- 1. НАСТРОЙКИ -----
-    if (!extensionSettings[MODULE_NAME]) extensionSettings[MODULE_NAME] = {};
-
-    // Глобальная инструкция (промпт для генерации описания)
-    const DEFAULT_PROMPT = `Based on {{char}}'s gender being "{{gender}}", write at the very beginning: "1 boy" if the gender is male, or "1 girl" if the gender is female. as a single humanoid character. Do NOT include any separate animals, pets, or unrelated objects in the description. Describe only what is physically part of the character. provide only a detailed comma-delimited list of keywords and phrases which describe {{char}}. The list must include all of the following items in this order: species and race, gender, age, clothing, occupation, physical features and appearances. Do not include descriptions of non-visual qualities such as personality, movements, scents, mental traits, or anything which could not be seen in a still photograph. Do not write in full sentences. Prefix your description with the phrase 'full body portrait,'`;
-
-    if (!extensionSettings[MODULE_NAME].generationPrompt) {
-        extensionSettings[MODULE_NAME].generationPrompt = DEFAULT_PROMPT;
-        saveSettingsDebounced();
+    if (!context.extensionSettings[MODULE_NAME]) {
+        context.extensionSettings[MODULE_NAME] = structuredClone(defaultSettings);
     }
-
-    function getGenerationPrompt() {
-        return extensionSettings[MODULE_NAME].generationPrompt || DEFAULT_PROMPT;
-    }
-
-    function setGenerationPrompt(text) {
-        extensionSettings[MODULE_NAME].generationPrompt = text;
-        saveSettingsDebounced();
-    }
-
-    // ----- 2. ОСНОВНОЕ ОКНО PORTRAITBANK (редактор описания) -----
-    if (!$('#portraitbank_modal').length) {
-        const modalHtml = `
-            <div id="portraitbank_modal" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 400px; max-width: 90%; background: var(--surface); border: 2px solid var(--primary); border-radius: 12px; padding: 20px; z-index: 9999; box-shadow: 0 0 20px rgba(0,0,0,0.7);">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                    <span style="font-size: 18px; font-weight: bold; color: var(--white);"><i class="fa-solid fa-image-portrait"></i> PortraitBank</span>
-                    <span id="portraitbank_close" style="cursor: pointer; font-size: 24px; color: var(--gray400);">&times;</span>
-                </div>
-                <textarea id="portraitbank_textarea" style="width: 100%; min-height: 120px; padding: 10px; border-radius: 8px; background: var(--black50a); color: var(--white); border: 1px solid var(--gray500);" placeholder="Сохранённое описание внешности..."></textarea>
-                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 15px;">
-                    <button id="portraitbank_save" class="menu_button">Сохранить</button>
-                    <button id="portraitbank_cancel" class="menu_button">Отмена</button>
-                </div>
-            </div>
-            <div id="portraitbank_overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9998;"></div>
-        `;
-        $('body').append(modalHtml);
-    }
-
-    // Функции работы с описанием персонажа
-    function getDescription(charId) {
-        return extensionSettings[MODULE_NAME][charId] || '';
-    }
-
-    function setDescription(charId, text) {
-        extensionSettings[MODULE_NAME][charId] = text;
-        saveSettingsDebounced();
-    }
-
-    function openModal() {
-        const charId = context.characterId;
-        $('#portraitbank_textarea').val(getDescription(charId));
-        $('#portraitbank_modal, #portraitbank_overlay').fadeIn(200);
-    }
-
-    function closeModal() {
-        $('#portraitbank_modal, #portraitbank_overlay').fadeOut(200);
-    }
-
-    $(document).off('click', '#portraitbank_save').on('click', '#portraitbank_save', function() {
-        setDescription(context.characterId, $('#portraitbank_textarea').val());
-        toastr.success('Описание сохранено');
-        closeModal();
-    });
-    $(document).off('click', '#portraitbank_cancel, #portraitbank_close, #portraitbank_overlay').on('click', '#portraitbank_cancel, #portraitbank_close, #portraitbank_overlay', closeModal);
-
-    // ----- 3. ОКНО НАСТРОЙКИ ИНСТРУКЦИИ (ПРОМПТ ДЛЯ ГЕНЕРАЦИИ) -----
-    if (!$('#portraitbank_prompt_modal').length) {
-        const promptModalHtml = `
-            <div id="portraitbank_prompt_modal" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 500px; max-width: 90%; background: var(--surface); border: 2px solid var(--primary); border-radius: 12px; padding: 20px; z-index: 9999; box-shadow: 0 0 20px rgba(0,0,0,0.7);">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                    <span style="font-size: 18px; font-weight: bold; color: var(--white);"><i class="fa-solid fa-gear"></i> Настройка инструкции</span>
-                    <span id="portraitbank_prompt_close" style="cursor: pointer; font-size: 24px; color: var(--gray400);">&times;</span>
-                </div>
-                <p style="color: var(--gray300); margin-bottom: 10px;">Редактируйте промпт для генерации описания. Используйте переменные {{char}}, {{gender}}, {{user}} и др.</p>
-                <textarea id="portraitbank_prompt_textarea" style="width: 100%; min-height: 200px; padding: 10px; border-radius: 8px; background: var(--black50a); color: var(--white); border: 1px solid var(--gray500); font-family: monospace;"></textarea>
-                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 15px;">
-                    <button id="portraitbank_prompt_save" class="menu_button">Сохранить инструкцию</button>
-                    <button id="portraitbank_prompt_cancel" class="menu_button">Отмена</button>
-                </div>
-                <div style="margin-top: 10px;">
-                    <button id="portraitbank_prompt_reset" class="menu_button" style="background: var(--gray700);">Сбросить к умолчанию</button>
-                </div>
-            </div>
-            <div id="portraitbank_prompt_overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9998;"></div>
-        `;
-        $('body').append(promptModalHtml);
-    }
-
-    function openPromptModal() {
-        $('#portraitbank_prompt_textarea').val(getGenerationPrompt());
-        $('#portraitbank_prompt_modal, #portraitbank_prompt_overlay').fadeIn(200);
-    }
-
-    function closePromptModal() {
-        $('#portraitbank_prompt_modal, #portraitbank_prompt_overlay').fadeOut(200);
-    }
-
-    $(document).off('click', '#portraitbank_prompt_save').on('click', '#portraitbank_prompt_save', function() {
-        setGenerationPrompt($('#portraitbank_prompt_textarea').val());
-        toastr.success('Инструкция сохранена');
-        closePromptModal();
-    });
-    $(document).off('click', '#portraitbank_prompt_cancel, #portraitbank_prompt_close, #portraitbank_prompt_overlay').on('click', '#portraitbank_prompt_cancel, #portraitbank_prompt_close, #portraitbank_prompt_overlay', closePromptModal);
-    $(document).off('click', '#portraitbank_prompt_reset').on('click', '#portraitbank_prompt_reset', function() {
-        $('#portraitbank_prompt_textarea').val(DEFAULT_PROMPT);
-    });
-
-    // ----- 4. ФУНКЦИЯ ГЕНЕРАЦИИ ОПИСАНИЯ ПО ИНСТРУКЦИИ -----
-    async function generateDescription() {
-        const promptTemplate = getGenerationPrompt();
-        if (!promptTemplate.trim()) {
-            toastr.warning('Инструкция не задана. Откройте настройки и сохраните промпт.');
-            return;
-        }
-
-        // Подставляем переменные {{...}} через штатную функцию ST
-        let finalPrompt = substituteParams(promptTemplate);
-        
-        // Дополнительно можно обрезать/обработать
-        finalPrompt = finalPrompt.trim();
-
-        toastr.info('⏳ Генерация описания...');
-
-        try {
-            if (typeof context.generateQuietPrompt !== 'function') {
-                throw new Error('generateQuietPrompt недоступен. Обновите SillyTavern.');
-            }
-
-            const generatedText = await context.generateQuietPrompt(finalPrompt, false, null, null, false, {
-                temperature: 0.9,
-                max_tokens: 400,
-            });
-
-            if (generatedText && generatedText.trim()) {
-                const charId = context.characterId;
-                setDescription(charId, generatedText.trim());
-                toastr.success('✅ Описание сгенерировано и сохранено!');
-                // Открываем основное окно с новым описанием
-                openModal();
-            } else {
-                toastr.error('Не удалось сгенерировать описание');
-            }
-        } catch (error) {
-            console.error('Ошибка генерации:', error);
-            toastr.error(`Ошибка: ${error.message || 'Неизвестная ошибка'}`);
+    // ensure all keys exist
+    const stored = context.extensionSettings[MODULE_NAME];
+    for (const key of Object.keys(defaultSettings)) {
+        if (!Object.hasOwn(stored, key)) {
+            stored[key] = structuredClone(defaultSettings[key]);
         }
     }
+    return stored;
+}
 
-    // ----- 5. КНОПКИ В МЕНЮ ПОЛЬЗОВАТЕЛЯ -----
-    function addUserMenuButtons() {
-        const userMenu = $('.top-bar .dropdown-menu').first();
-        if (userMenu.length) {
-            // Основная кнопка PortraitBank (уже есть)
-            if (!$('#portraitbank_user_menu_item').length) {
-                const divider = $('<li class="divider"></li>');
-                const menuItem = $(`
-                    <li id="portraitbank_user_menu_item">
-                        <a href="#"><i class="fa-solid fa-paintbrush"></i> PortraitBank</a>
-                    </li>
-                `);
-                userMenu.append(divider);
-                userMenu.append(menuItem);
-                menuItem.on('click', (e) => {
-                    e.preventDefault();
-                    openModal();
-                });
-            }
+function saveSettings() {
+    SillyTavern.getContext().saveSettingsDebounced();
+}
 
-            // Кнопка генерации описания
-            if (!$('#portraitbank_generate_menu_item').length) {
-                const genItem = $(`
-                    <li id="portraitbank_generate_menu_item">
-                        <a href="#"><i class="fa-solid fa-wand-magic-sparkles"></i> Сгенерировать описание</a>
-                    </li>
-                `);
-                // Вставляем после основной
-                const pbItem = $('#portraitbank_user_menu_item');
-                if (pbItem.length) {
-                    pbItem.after(genItem);
-                } else {
-                    userMenu.append(genItem);
-                }
-                genItem.on('click', (e) => {
-                    e.preventDefault();
-                    generateDescription();
-                });
-            }
+// ----- Description storage (per character) -----------------------------
+function getDescription(charId) {
+    const settings = getSettings();
+    return settings[charId] || '';
+}
 
-            // Кнопка настройки инструкции
-            if (!$('#portraitbank_prompt_menu_item').length) {
-                const promptItem = $(`
-                    <li id="portraitbank_prompt_menu_item">
-                        <a href="#"><i class="fa-solid fa-gear"></i> Настройка инструкции</a>
-                    </li>
-                `);
-                const genItem = $('#portraitbank_generate_menu_item');
-                if (genItem.length) {
-                    genItem.after(promptItem);
-                } else {
-                    userMenu.append(promptItem);
-                }
-                promptItem.on('click', (e) => {
-                    e.preventDefault();
-                    openPromptModal();
-                });
-            }
+function setDescription(charId, text) {
+    const settings = getSettings();
+    settings[charId] = text;
+    saveSettings();
+}
 
-            console.log('✅ Кнопки PortraitBank добавлены в меню пользователя');
+// ----- Modal window (main PortraitBank editor) -------------------------
+function createModal() {
+    if (document.getElementById('portraitbank_modal')) return;
+    const modalHtml = `
+        <div id="portraitbank_modal" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 400px; max-width: 90%; background: var(--surface); border: 2px solid var(--primary); border-radius: 12px; padding: 20px; z-index: 9999; box-shadow: 0 0 20px rgba(0,0,0,0.7);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <span style="font-size: 18px; font-weight: bold; color: var(--white);"><i class="fa-solid fa-image-portrait"></i> PortraitBank</span>
+                <span id="portraitbank_close" style="cursor: pointer; font-size: 24px; color: var(--gray400);">&times;</span>
+            </div>
+            <textarea id="portraitbank_textarea" style="width: 100%; min-height: 120px; padding: 10px; border-radius: 8px; background: var(--black50a); color: var(--white); border: 1px solid var(--gray500);" placeholder="Опишите внешность персонажа..."></textarea>
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 15px;">
+                <button id="portraitbank_save" class="menu_button">Сохранить</button>
+                <button id="portraitbank_cancel" class="menu_button">Отмена</button>
+            </div>
+        </div>
+        <div id="portraitbank_overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9998;"></div>
+    `;
+    $('body').append(modalHtml);
+}
+
+function openModal() {
+    const ctx = SillyTavern.getContext();
+    const description = getDescription(ctx.characterId);
+    $('#portraitbank_textarea').val(description);
+    $('#portraitbank_modal, #portraitbank_overlay').fadeIn(200);
+}
+
+function closeModal() {
+    $('#portraitbank_modal, #portraitbank_overlay').fadeOut(200);
+}
+
+// ----- AI Generation of description (quiet prompt) --------------------
+async function generateDescriptionFromPrompt(promptText) {
+    const ctx = SillyTavern.getContext();
+    const settings = getSettings();
+
+    if (!promptText.trim()) {
+        toastr.warning('Введите подсказку для генерации');
+        return;
+    }
+
+    const finalPrompt = ctx.substituteParams(settings.generationPrompt + '\n\n' + promptText);
+
+    try {
+        if (typeof ctx.generateQuietPrompt !== 'function') {
+            throw new Error('generateQuietPrompt не доступен. Обновите SillyTavern.');
+        }
+
+        const generated = await ctx.generateQuietPrompt(finalPrompt, false, null, null, false, {
+            temperature: settings.modelParams.temperature,
+            max_tokens: settings.modelParams.max_tokens,
+        });
+
+        if (generated?.trim()) {
+            setDescription(ctx.characterId, generated.trim());
+            toastr.success('Описание сгенерировано и сохранено!');
+            openModal(); // покажем результат
         } else {
-            setTimeout(addUserMenuButtons, 500);
+            toastr.error('Не удалось сгенерировать описание');
         }
+    } catch (error) {
+        console.error('[PortraitBank] Generation error:', error);
+        toastr.error(`Ошибка генерации: ${error.message}`);
     }
-    addUserMenuButtons();
+}
 
-    // ----- 6. СЛЕШ-КОМАНДЫ -----
-    // /portrait — открыть редактор
-    try {
-        context.registerSlashCommand('portrait', openModal, [], '– открыть редактор описания', true, true);
-    } catch (e) { console.error(e); }
+// ----- Command: set prompt prefix and click Yourself -----------------
+async function portraitImageCommand() {
+    const ctx = SillyTavern.getContext();
+    const charId = ctx.characterId;
+    const description = getDescription(charId);
 
-    // /portrait-generate — запустить генерацию по сохранённой инструкции
-    try {
-        context.registerSlashCommand('portrait-generate', generateDescription, ['portrait-gen'], '– сгенерировать описание по текущей инструкции', true, false);
-    } catch (e) { console.error(e); }
+    if (!description.trim()) {
+        toastr.warning('❌ Нет описания для этого персонажа. Создайте его через /portrait или /portrait-generate');
+        return;
+    }
 
-    // /portrait-prompt — открыть настройки инструкции
-    try {
-        context.registerSlashCommand('portrait-prompt', openPromptModal, ['portrait-instruction'], '– редактировать инструкцию для генерации', true, false);
-    } catch (e) { console.error(e); }
+    // Открываем вкладку Image Generation
+    $('.character-popups .tab:contains("Image Generation")').trigger('click');
+    await new Promise(r => setTimeout(r, 400));
 
-    // ----- 7. ИНЪЕКЦИЯ В ПРОМПТ (как и раньше) -----
-    eventSource.on(eventTypes.GENERATION_STARTED, () => {
+    // Заполняем поле sd_character_prompt
+    const $field = $('#sd_character_prompt');
+    if ($field.length) {
+        $field.val(description).trigger('input').trigger('change');
+        toastr.success('✅ Prompt prefix установлен');
+    } else {
+        toastr.error('❌ Поле #sd_character_prompt не найдено');
+        return;
+    }
+
+    // Нажимаем Yourself
+    setTimeout(() => {
+        const $btn = $('#yourself_button, button:contains("Yourself")').first();
+        if ($btn.length) {
+            $btn.trigger('click');
+            toastr.info('🎨 Генерация изображения запущена');
+        } else {
+            toastr.error('❌ Кнопка Yourself не найдена. Нажмите вручную.');
+        }
+    }, 300);
+}
+
+// ----- UI Settings Panel (Extensions tab) ----------------------------
+function createSettingsUI() {
+    const settings = getSettings();
+    const container = document.getElementById('extensions_settings');
+    if (!container) return;
+
+    const html = `
+        <div class="inline-drawer">
+            <div class="inline-drawer-toggle inline-drawer-header">
+                <b>PortraitBank – генерация описаний внешности</b>
+                <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+            </div>
+            <div class="inline-drawer-content">
+                <div class="iig-settings" style="padding: 10px;">
+                    <h4>Инструкция для генерации описания</h4>
+                    <p class="hint">Этот промпт отправляется AI вместе с вашими подсказками. Используйте {{char}}, {{gender}} и другие макросы.</p>
+                    <textarea id="portraitbank_prompt_editor" class="text_pole" style="width:100%; min-height:150px; font-family:monospace;">${settings.generationPrompt}</textarea>
+                    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:10px;">
+                        <button id="portraitbank_save_prompt" class="menu_button"><i class="fa-solid fa-save"></i> Сохранить инструкцию</button>
+                        <button id="portraitbank_reset_prompt" class="menu_button"><i class="fa-solid fa-undo"></i> Сбросить</button>
+                    </div>
+                    
+                    <hr>
+                    
+                    <h4>Параметры генерации</h4>
+                    <div class="flex-row">
+                        <label for="portraitbank_temperature">Temperature</label>
+                        <input type="number" id="portraitbank_temperature" class="text_pole flex1" value="${settings.modelParams.temperature}" min="0.1" max="2.0" step="0.1">
+                    </div>
+                    <div class="flex-row">
+                        <label for="portraitbank_max_tokens">Max tokens</label>
+                        <input type="number" id="portraitbank_max_tokens" class="text_pole flex1" value="${settings.modelParams.max_tokens}" min="100" max="1000" step="50">
+                    </div>
+                    
+                    <hr>
+                    
+                    <h4>Действия</h4>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <button id="portraitbank_ui_generate" class="menu_button"><i class="fa-solid fa-wand-magic-sparkles"></i> Сгенерировать описание</button>
+                        <button id="portraitbank_ui_image" class="menu_button"><i class="fa-solid fa-image"></i> Заполнить поле и сгенерировать изображение</button>
+                        <button id="portraitbank_ui_edit" class="menu_button"><i class="fa-solid fa-pencil"></i> Редактировать описание</button>
+                    </div>
+                    <p class="hint" style="margin-top:10px;">Текущий персонаж: <span id="portraitbank_current_char">—</span>, описание: <span id="portraitbank_current_desc_preview">—</span></p>
+                </div>
+            </div>
+        </div>
+    `;
+
+    container.insertAdjacentHTML('beforeend', html);
+    bindSettingsUI();
+}
+
+function bindSettingsUI() {
+    const settings = getSettings();
+
+    // Сохранить инструкцию
+    $('#portraitbank_save_prompt').on('click', function() {
+        const newPrompt = $('#portraitbank_prompt_editor').val();
+        settings.generationPrompt = newPrompt;
+        saveSettings();
+        toastr.success('Инструкция сохранена');
+    });
+
+    // Сбросить инструкцию
+    $('#portraitbank_reset_prompt').on('click', function() {
+        $('#portraitbank_prompt_editor').val(defaultSettings.generationPrompt);
+        settings.generationPrompt = defaultSettings.generationPrompt;
+        saveSettings();
+        toastr.info('Инструкция сброшена к умолчанию');
+    });
+
+    // Temperature
+    $('#portraitbank_temperature').on('input', function() {
+        settings.modelParams.temperature = parseFloat($(this).val()) || 0.9;
+        saveSettings();
+    });
+
+    // Max tokens
+    $('#portraitbank_max_tokens').on('input', function() {
+        settings.modelParams.max_tokens = parseInt($(this).val()) || 400;
+        saveSettings();
+    });
+
+    // Кнопка "Сгенерировать описание"
+    $('#portraitbank_ui_generate').on('click', function() {
+        // Запросим подсказку у пользователя
+        const hint = prompt('Введите подсказки для генерации (стиль, детали):', '');
+        if (hint !== null) {
+            generateDescriptionFromPrompt(hint);
+        }
+    });
+
+    // Кнопка "Заполнить поле и сгенерировать изображение"
+    $('#portraitbank_ui_image').on('click', function() {
+        portraitImageCommand();
+    });
+
+    // Кнопка "Редактировать описание" (открыть модалку)
+    $('#portraitbank_ui_edit').on('click', function() {
+        openModal();
+    });
+
+    // Обновление информации о текущем персонаже
+    function updateUIInfo() {
         const ctx = SillyTavern.getContext();
+        const charName = ctx.characters?.[ctx.characterId]?.name || '—';
+        const desc = getDescription(ctx.characterId);
+        const preview = desc.length > 50 ? desc.substring(0, 50) + '…' : desc || 'пусто';
+        $('#portraitbank_current_char').text(charName);
+        $('#portraitbank_current_desc_preview').text(preview);
+    }
+
+    // Обновляем при загрузке и смене персонажа
+    updateUIInfo();
+    SillyTavern.getContext().eventSource.on(SillyTavern.getContext().eventTypes.CHARACTER_SWITCHED, updateUIInfo);
+}
+
+// ----- Slash Commands ------------------------------------------------
+function registerCommands() {
+    const ctx = SillyTavern.getContext();
+
+    try {
+        ctx.registerSlashCommand('portrait', openModal, [], '– открыть редактор описания внешности', true, true);
+        ctx.registerSlashCommand('portrait-generate', () => {
+            const hint = prompt('Введите подсказки для генерации:', '');
+            if (hint !== null) generateDescriptionFromPrompt(hint);
+        }, ['portrait-gen'], '– сгенерировать описание через AI', true, false);
+        ctx.registerSlashCommand('portrait-image', portraitImageCommand, ['portrait-img'], '– записать описание в промпт-префикс и запустить Yourself', true, false);
+        console.log('[PortraitBank] Slash commands registered');
+    } catch (e) {
+        console.error('[PortraitBank] Failed to register commands:', e);
+    }
+}
+
+// ----- User menu button (optional, but nice) -------------------------
+function addUserMenuButton() {
+    const userMenu = $('.top-bar .dropdown-menu').first();
+    if (!userMenu.length) {
+        setTimeout(addUserMenuButton, 500);
+        return;
+    }
+    if ($('#portraitbank_user_menu_item').length) return;
+
+    const divider = $('<li class="divider"></li>');
+    const menuItem = $(`
+        <li id="portraitbank_user_menu_item">
+            <a href="#"><i class="fa-solid fa-paintbrush"></i> PortraitBank</a>
+        </li>
+    `);
+    userMenu.append(divider);
+    userMenu.append(menuItem);
+    menuItem.on('click', (e) => {
+        e.preventDefault();
+        openModal();
+    });
+}
+// --------------------------------------------------------------------
+
+// ----- Inject prompt into generation (already done) ------------------
+function setupInjection() {
+    const ctx = SillyTavern.getContext();
+    ctx.eventSource.on(ctx.eventTypes.GENERATION_STARTED, () => {
         const desc = getDescription(ctx.characterId);
         if (desc.trim()) {
             ctx.setExtensionPrompt(
@@ -247,71 +318,55 @@ jQuery(async () => {
                 15,
                 'system'
             );
-            console.log('🎨 Промпт PortraitBank внедрён');
         }
     });
+}
 
-    console.log('✅ PortraitBank полностью загружен. Команды: /portrait, /portrait-generate, /portrait-prompt');
-});
-// ----- 8. КОМАНДА: /portrait-image (с понятными подсказками) -----
-function portraitImageCommand() {
-    console.log('🖼️ Выполняется /portrait-image');
-    
-    try {
-        const ctx = SillyTavern.getContext();
-        const charId = ctx.characterId;
-        
-        // Проверяем, есть ли вообще настройки PortraitBank
-        const pbSettings = ctx.extensionSettings?.PortraitBank;
-        if (!pbSettings) {
-            console.warn('⚠️ PortraitBank ещё не инициализирован');
-            toastr.warning('Сначала используйте /portrait или /portrait-generate');
-            return;
+// ----- INITIALIZATION (exactly like IIG) ----------------------------
+(function init() {
+    console.log('[PortraitBank] Initializing...');
+
+    // 1. Инициализируем настройки
+    getSettings();
+
+    // 2. Создаём модальное окно
+    createModal();
+
+    // 3. Регистрируем команды (ждём контекст)
+    function tryRegister() {
+        if (SillyTavern.getContext()?.registerSlashCommand) {
+            registerCommands();
+        } else {
+            setTimeout(tryRegister, 200);
         }
-
-        const description = pbSettings[charId];
-        console.log('📝 Описание для персонажа:', description ? 'есть' : 'нет');
-
-        if (!description?.trim()) {
-            console.warn('❌ Нет описания для этого персонажа');
-            toastr.warning('❌ У этого персонажа нет описания. Создайте его через /portrait-generate');
-            return;
-        }
-
-        // --- Дальше идёт сохранение в карточку и клик по Yourself ---
-        // (весь код сохранения и клика — как в отладочной версии)
-        // ... (здесь вставь проверенный код сохранения в character.data.extensions.sd_character_prompt и нажатие кнопки)
-
-        toastr.success('✅ Промпт-префикс записан в карточку');
-        
-        // Клик по Yourself
-        setTimeout(() => {
-            const $btn = $('#yourself_button, button:contains("Yourself")').first();
-            if ($btn.length) {
-                $btn.trigger('click');
-                toastr.info('🎨 Генерация запущена');
-            } else {
-                toastr.error('❌ Кнопка Yourself не найдена. Нажмите вручную.');
-            }
-        }, 300);
-
-    } catch (e) {
-        console.error('🔥 Критическая ошибка:', e);
-        toastr.error('Ошибка: ' + e.message);
     }
-}
+    tryRegister();
 
-// Регистрация команды
-try {
-    SillyTavern.getContext().registerSlashCommand(
-        'portrait-image',
-        portraitImageCommand,
-        ['portrait-img', 'pb-image'],
-        '– записать описание в карточку и запустить Yourself',
-        true,
-        false
-    );
-    console.log('✅ Команда /portrait-image (финальная) зарегистрирована');
-} catch (e) {
-    console.error('❌ Ошибка регистрации:', e);
-}
+    // 4. Подписываемся на события после полной загрузки приложения
+    const context = SillyTavern.getContext();
+    context.eventSource.on(context.event_types.APP_READY, () => {
+        console.log('[PortraitBank] APP_READY – creating UI');
+        createSettingsUI();
+        addUserMenuButton();
+        setupInjection();
+        console.log('[PortraitBank] Fully loaded');
+    });
+
+    // 5. Если APP_READY уже случился, создаём UI сейчас
+    if (context.app_ready) {
+        setTimeout(() => {
+            createSettingsUI();
+            addUserMenuButton();
+            setupInjection();
+        }, 100);
+    }
+
+    // 6. Обработчики модалки (один раз глобально)
+    $(document).off('click', '#portraitbank_save').on('click', '#portraitbank_save', function() {
+        const ctx = SillyTavern.getContext();
+        setDescription(ctx.characterId, $('#portraitbank_textarea').val());
+        toastr.success('Описание сохранено');
+        closeModal();
+    });
+    $(document).off('click', '#portraitbank_cancel, #portraitbank_close, #portraitbank_overlay').on('click', '#portraitbank_cancel, #portraitbank_close, #portraitbank_overlay', closeModal);
+})();
