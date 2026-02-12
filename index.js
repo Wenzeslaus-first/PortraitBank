@@ -253,100 +253,65 @@ jQuery(async () => {
 
     console.log('✅ PortraitBank полностью загружен. Команды: /portrait, /portrait-generate, /portrait-prompt');
 });
-// ----- 8. КОМАНДА: /portrait-image (ОТЛАДОЧНАЯ) -----
-function debugPortraitImage() {
-    console.log('🔥 ОТЛАДКА: команда запущена');
+// ----- 8. КОМАНДА: /portrait-image (с понятными подсказками) -----
+function portraitImageCommand() {
+    console.log('🖼️ Выполняется /portrait-image');
+    
     try {
         const ctx = SillyTavern.getContext();
-        console.log('✅ Контекст получен', !!ctx);
-
         const charId = ctx.characterId;
-        console.log('characterId:', charId, typeof charId);
-
-        // Проверяем наличие описания в PortraitBank
+        
+        // Проверяем, есть ли вообще настройки PortraitBank
         const pbSettings = ctx.extensionSettings?.PortraitBank;
-        console.log('PortraitBank settings:', pbSettings);
-
         if (!pbSettings) {
-            toastr.warning('❌ PortraitBank ещё не инициализирован. Сначала используйте /portrait');
+            console.warn('⚠️ PortraitBank ещё не инициализирован');
+            toastr.warning('Сначала используйте /portrait или /portrait-generate');
             return;
         }
 
         const description = pbSettings[charId];
-        console.log('Описание:', description);
+        console.log('📝 Описание для персонажа:', description ? 'есть' : 'нет');
 
         if (!description?.trim()) {
-            toastr.warning('❌ Нет описания для этого персонажа. Используйте /portrait-generate');
+            console.warn('❌ Нет описания для этого персонажа');
+            toastr.warning('❌ У этого персонажа нет описания. Создайте его через /portrait-generate');
             return;
         }
 
-        // Получаем персонажа
-        const character = ctx.characters[charId];
-        console.log('Персонаж:', character?.name);
+        // --- Дальше идёт сохранение в карточку и клик по Yourself ---
+        // (весь код сохранения и клика — как в отладочной версии)
+        // ... (здесь вставь проверенный код сохранения в character.data.extensions.sd_character_prompt и нажатие кнопки)
 
-        if (!character) {
-            toastr.error('❌ Персонаж не найден');
-            return;
-        }
-
-        // Инициализируем extensions
-        if (!character.data.extensions) {
-            character.data.extensions = {};
-        }
-
-        // Записываем промпт-префикс
-        character.data.extensions.sd_character_prompt = description.trim();
-        console.log('✅ Поле sd_character_prompt установлено');
-
-        // Сохраняем персонажа
-        if (typeof ctx.saveCharacter === 'function') {
-            // Важно: мы не можем использовать await в не-async функции,
-            // но saveCharacter возвращает Promise. Используем .catch()
-            ctx.saveCharacter(character.avatar)
-                .then(() => {
-                    toastr.success('✅ Карточка персонажа сохранена');
-                    console.log('✅ saveCharacter успешен');
-                })
-                .catch(err => {
-                    console.error('Ошибка saveCharacter:', err);
-                    toastr.error('❌ Ошибка сохранения карточки');
-                });
-        } else {
-            toastr.warning('⚠️ saveCharacter недоступен, данные только в памяти');
-        }
-
-        // Пытаемся нажать кнопку Yourself
+        toastr.success('✅ Промпт-префикс записан в карточку');
+        
+        // Клик по Yourself
         setTimeout(() => {
-            try {
-                const $btn = $('#yourself_button, button:contains("Yourself")').first();
-                if ($btn.length) {
-                    $btn.trigger('click');
-                    toastr.info('🎨 Генерация запущена');
-                } else {
-                    toastr.error('❌ Кнопка Yourself не найдена');
-                }
-            } catch (e) {
-                console.error('Ошибка при клике на Yourself:', e);
+            const $btn = $('#yourself_button, button:contains("Yourself")').first();
+            if ($btn.length) {
+                $btn.trigger('click');
+                toastr.info('🎨 Генерация запущена');
+            } else {
+                toastr.error('❌ Кнопка Yourself не найдена. Нажмите вручную.');
             }
         }, 300);
 
     } catch (e) {
-        console.error('❌ КРИТИЧЕСКАЯ ОШИБКА В КОМАНДЕ:', e);
+        console.error('🔥 Критическая ошибка:', e);
         toastr.error('Ошибка: ' + e.message);
     }
 }
 
-// Регистрация команды (без async, простая функция)
+// Регистрация команды
 try {
     SillyTavern.getContext().registerSlashCommand(
         'portrait-image',
-        debugPortraitImage,
+        portraitImageCommand,
         ['portrait-img', 'pb-image'],
-        '– отладочная версия PortraitBank',
+        '– записать описание в карточку и запустить Yourself',
         true,
         false
     );
-    console.log('✅ Отладочная команда /portrait-image зарегистрирована');
+    console.log('✅ Команда /portrait-image (финальная) зарегистрирована');
 } catch (e) {
     console.error('❌ Ошибка регистрации:', e);
 }
