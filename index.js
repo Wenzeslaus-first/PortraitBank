@@ -79,12 +79,13 @@ function closeModal() {
     $('#portraitbank_modal, #portraitbank_overlay').fadeOut(200);
 }
 
-// ----- ADAPTIVE: Compare Modal (two columns on desktop, tabs + swipe on mobile) -----
+// ----- ADAPTIVE: Compare Modal (two columns on desktop, bottom sheet on mobile) -----
 function createCompareModal() {
     if (document.getElementById('portraitbank_compare_modal')) return;
     
+    // Базовая структура без жёсткого позиционирования — его будем менять динамически
     const modalHtml = `
-        <div id="portraitbank_compare_modal" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 800px; max-width: 95%; background: var(--surface); border: 2px solid var(--primary); border-radius: 12px; padding: 20px; z-index: 9999; box-shadow: 0 0 20px rgba(0,0,0,0.7);">
+        <div id="portraitbank_compare_modal" style="display: none; position: fixed; background: var(--surface); border: 2px solid var(--primary); padding: 20px; z-index: 9999; box-shadow: 0 0 20px rgba(0,0,0,0.7);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                 <span style="font-size: 18px; font-weight: bold; color: var(--white);"><i class="fa-solid fa-code-compare"></i> PortraitBank – Сравнение</span>
                 <span id="portraitbank_compare_close" style="cursor: pointer; font-size: 24px; color: var(--gray400);">&times;</span>
@@ -106,11 +107,35 @@ function openCompareModal(oldText, newText) {
     activeTab = 'old';
 
     const isMobile = window.innerWidth <= 600;
+    const modal = $('#portraitbank_compare_modal');
+    const overlay = $('#portraitbank_compare_overlay');
     const contentDiv = $('#portraitbank_compare_content');
-    contentDiv.empty();
+    
+    // Сбрасываем ранее добавленные inline-стили позиционирования
+    modal.css({
+        position: 'fixed',
+        width: '',
+        maxWidth: '',
+        borderRadius: '',
+        bottom: '',
+        left: '',
+        transform: '',
+        top: '',
+    });
 
     if (isMobile) {
-        // --- МОБИЛЬНЫЙ РЕЖИМ: вкладки + свайп ---
+        // --- МОБИЛЬНЫЙ РЕЖИМ: нижний лист (bottom sheet) ---
+        modal.css({
+            bottom: '0',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: '100%',
+            maxWidth: '100%',
+            borderRadius: '12px 12px 0 0',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+        });
+        
         const mobileHtml = `
             <div style="display: flex; flex-direction: column; gap: 15px;">
                 <!-- Вкладки -->
@@ -129,7 +154,7 @@ function openCompareModal(oldText, newText) {
                 <p style="color: var(--gray400); font-size: 12px; margin-top: 5px;"><i class="fa-solid fa-arrows-left-right"></i> Свайп влево/вправо по тексту для переключения</p>
             </div>
         `;
-        contentDiv.append(mobileHtml);
+        contentDiv.empty().append(mobileHtml);
 
         // --- Обработчики вкладок ---
         $('#portraitbank_tab_old').on('click', function() {
@@ -179,7 +204,7 @@ function openCompareModal(oldText, newText) {
         }
 
         // --- Кнопка выбора ---
-        $('#portraitbank_choose_mobile').on('click', function() {
+        $('#portraitbank_choose_mobile').off('click').on('click', function() {
             const ctx = SillyTavern.getContext();
             const text = $('#portraitbank_compare_textarea').val();
             setDescription(ctx.characterId, text);
@@ -188,7 +213,18 @@ function openCompareModal(oldText, newText) {
         });
 
     } else {
-        // --- ДЕСКТОПНЫЙ РЕЖИМ: два столбца ---
+        // --- ДЕСКТОПНЫЙ РЕЖИМ: центрированное окно ---
+        modal.css({
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: '800px',
+            maxWidth: '95%',
+            borderRadius: '12px',
+            maxHeight: 'none',
+            overflowY: 'visible',
+        });
+
         const desktopHtml = `
             <div style="display: flex; gap: 20px; flex-wrap: wrap;">
                 <!-- Старое описание -->
@@ -211,17 +247,17 @@ function openCompareModal(oldText, newText) {
                 </div>
             </div>
         `;
-        contentDiv.append(desktopHtml);
+        contentDiv.empty().append(desktopHtml);
 
         // --- Обработчики выбора для десктопа ---
-        $('#portraitbank_choose_old').on('click', function() {
+        $('#portraitbank_choose_old').off('click').on('click', function() {
             const ctx = SillyTavern.getContext();
             const text = $('#portraitbank_compare_old').val();
             setDescription(ctx.characterId, text);
             toastr.success('Сохранено текущее описание');
             closeCompareModal();
         });
-        $('#portraitbank_choose_new').on('click', function() {
+        $('#portraitbank_choose_new').off('click').on('click', function() {
             const ctx = SillyTavern.getContext();
             const text = $('#portraitbank_compare_new').val();
             setDescription(ctx.characterId, text);
@@ -231,7 +267,8 @@ function openCompareModal(oldText, newText) {
     }
 
     // Показываем окно
-    $('#portraitbank_compare_modal, #portraitbank_compare_overlay').fadeIn(200);
+    modal.fadeIn(200);
+    overlay.fadeIn(200);
 }
 
 function closeCompareModal() {
