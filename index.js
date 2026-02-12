@@ -36,25 +36,38 @@ function saveSettings() {
     SillyTavern.getContext().saveSettingsDebounced();
 }
 
-// ----- Description storage (per character) -----------------------------
+// ----- Description storage (positive and negative) ---------------------
 function getDescription(charId) {
     const settings = getSettings();
-    return settings[charId] || '';
+    return settings[charId]?.positive || '';
 }
 
 function setDescription(charId, text) {
     const settings = getSettings();
-    settings[charId] = text;
+    if (!settings[charId]) settings[charId] = {};
+    settings[charId].positive = text;
     saveSettings();
 }
 
-// ----- ADAPTIVE: Modal window (main PortraitBank editor) --------------
+function getNegativeDescription(charId) {
+    const settings = getSettings();
+    return settings[charId]?.negative || '';
+}
+
+function setNegativeDescription(charId, text) {
+    const settings = getSettings();
+    if (!settings[charId]) settings[charId] = {};
+    settings[charId].negative = text;
+    saveSettings();
+}
+
+// ----- ADAPTIVE: Positive Prompt Modal (main editor) -------------------
 function createModal() {
     if (document.getElementById('portraitbank_modal')) return;
     const modalHtml = `
         <div id="portraitbank_modal" style="display: none; position: fixed; background: var(--surface); border: 2px solid var(--primary); border-radius: 12px; padding: 20px; z-index: 9999; box-shadow: 0 0 20px rgba(0,0,0,0.7);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                <span style="font-size: 18px; font-weight: bold; color: var(--white);"><i class="fa-solid fa-image-portrait"></i> PortraitBank</span>
+                <span style="font-size: 18px; font-weight: bold; color: var(--white);"><i class="fa-solid fa-image-portrait"></i> PortraitBank – Положительный промпт</span>
                 <span id="portraitbank_close" style="cursor: pointer; font-size: 24px; color: var(--gray400);">&times;</span>
             </div>
             <textarea id="portraitbank_textarea" style="width: 100%; min-height: 120px; padding: 10px; border-radius: 8px; background: var(--black50a); color: var(--white); border: 1px solid var(--gray500);" placeholder="Опишите внешность персонажа..."></textarea>
@@ -74,13 +87,9 @@ function openModal() {
     const $modal = $('#portraitbank_modal');
     const $overlay = $('#portraitbank_overlay');
     
-    // Устанавливаем текст
     $('#portraitbank_textarea').val(description);
     
-    // Адаптивные стили под мобильные/десктоп
     const isMobile = window.innerWidth <= 600;
-    
-    // Сбрасываем ранее добавленные inline-стили, оставляя базовые
     $modal.attr('style', 'display: none; position: fixed; border: 2px solid var(--primary); border-radius: 12px; padding: 20px; z-index: 9999; box-shadow: 0 0 20px rgba(0,0,0,0.7);');
     
     if (isMobile) {
@@ -115,7 +124,71 @@ function closeModal() {
     $('#portraitbank_modal, #portraitbank_overlay').fadeOut(200);
 }
 
-// ----- ADAPTIVE: Compare Modal (desktop: two columns, mobile: top‑aligned, semi‑transparent) -----
+// ----- ADAPTIVE: Negative Prompt Modal ---------------------------------
+function createNegativeModal() {
+    if (document.getElementById('portraitbank_negative_modal')) return;
+    const modalHtml = `
+        <div id="portraitbank_negative_modal" style="display: none; position: fixed; background: var(--surface); border: 2px solid var(--primary); border-radius: 12px; padding: 20px; z-index: 9999; box-shadow: 0 0 20px rgba(0,0,0,0.7);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <span style="font-size: 18px; font-weight: bold; color: var(--white);"><i class="fa-solid fa-ban"></i> PortraitBank – Отрицательный промпт</span>
+                <span id="portraitbank_negative_close" style="cursor: pointer; font-size: 24px; color: var(--gray400);">&times;</span>
+            </div>
+            <p style="color: var(--gray300); margin-bottom: 10px;">Укажите, что НЕ должно появляться на изображении (через запятую).</p>
+            <textarea id="portraitbank_negative_textarea" style="width: 100%; min-height: 120px; padding: 10px; border-radius: 8px; background: var(--black50a); color: var(--white); border: 1px solid var(--gray500);" placeholder="Пример: jewellery, shoes, glasses, hat"></textarea>
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 15px;">
+                <button id="portraitbank_negative_save" class="menu_button">Сохранить</button>
+                <button id="portraitbank_negative_cancel" class="menu_button">Отмена</button>
+            </div>
+        </div>
+        <div id="portraitbank_negative_overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9998;"></div>
+    `;
+    $('body').append(modalHtml);
+}
+
+function openNegativeModal() {
+    const ctx = SillyTavern.getContext();
+    const negative = getNegativeDescription(ctx.characterId);
+    const $modal = $('#portraitbank_negative_modal');
+    const $overlay = $('#portraitbank_negative_overlay');
+    
+    $('#portraitbank_negative_textarea').val(negative);
+    
+    const isMobile = window.innerWidth <= 600;
+    $modal.attr('style', 'display: none; position: fixed; border: 2px solid var(--primary); border-radius: 12px; padding: 20px; z-index: 9999; box-shadow: 0 0 20px rgba(0,0,0,0.7);');
+    
+    if (isMobile) {
+        $modal.css({
+            top: '10px',
+            left: '5%',
+            right: '5%',
+            width: 'auto',
+            maxHeight: 'calc(100vh - 20px)',
+            overflowY: 'auto',
+            transform: 'none',
+            background: 'rgba(32, 32, 32, 0.95)',
+        });
+    } else {
+        $modal.css({
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: '400px',
+            maxWidth: '90%',
+            background: 'var(--surface)',
+            maxHeight: 'none',
+            overflowY: 'visible',
+        });
+    }
+    
+    $modal.fadeIn(200);
+    $overlay.fadeIn(200);
+}
+
+function closeNegativeModal() {
+    $('#portraitbank_negative_modal, #portraitbank_negative_overlay').fadeOut(200);
+}
+
+// ----- ADAPTIVE: Compare Modal (positive generation) -------------------
 function createCompareModal() {
     if (document.getElementById('portraitbank_compare_modal')) return;
     const modalHtml = `
@@ -179,7 +252,6 @@ function openCompareModal(oldText, newText) {
         `;
         contentDiv.empty().append(mobileHtml);
 
-        // --- Обработчики вкладок ---
         $('#portraitbank_tab_old').off().on('click', function() {
             activeTab = 'old';
             $('#portraitbank_compare_textarea').val(currentOldText);
@@ -193,7 +265,6 @@ function openCompareModal(oldText, newText) {
             $('#portraitbank_tab_old').css({ 'border-bottom-color': 'transparent', 'color': 'var(--gray300)' });
         });
 
-        // --- Обработчик свайпа ---
         let touchStartX = 0;
         const textarea = document.getElementById('portraitbank_compare_textarea');
         if (textarea) {
@@ -215,7 +286,6 @@ function openCompareModal(oldText, newText) {
             textarea.addEventListener('touchend', textarea._touchEnd, { passive: true });
         }
 
-        // --- Кнопка выбора ---
         $('#portraitbank_choose_mobile').off().on('click', function() {
             const ctx = SillyTavern.getContext();
             setDescription(ctx.characterId, $('#portraitbank_compare_textarea').val());
@@ -224,7 +294,6 @@ function openCompareModal(oldText, newText) {
         });
 
     } else {
-        // --- ДЕСКТОПНЫЙ РЕЖИМ: два столбца, центрированное окно ---
         modal.css({
             top: '50%',
             left: '50%',
@@ -282,7 +351,7 @@ function closeCompareModal() {
     $('#portraitbank_compare_modal, #portraitbank_compare_overlay').fadeOut(200);
 }
 
-// ----- AI Generation of description (quiet prompt) --------------------
+// ----- AI Generation of positive description --------------------------
 async function generateDescriptionFromPrompt(promptText = '') {
     const ctx = SillyTavern.getContext();
     const settings = getSettings();
@@ -315,30 +384,40 @@ async function generateDescriptionFromPrompt(promptText = '') {
     }
 }
 
-// ----- Command: set prompt prefix and generate image via /sd you -----
+// ----- Command: set both prompt fields and generate via /sd you ------
 async function portraitImageCommand() {
     const ctx = SillyTavern.getContext();
     const charId = ctx.characterId;
-    const description = getDescription(charId);
+    const positive = getDescription(charId);
+    const negative = getNegativeDescription(charId);
 
-    if (!description.trim()) {
-        toastr.warning('❌ Нет описания для этого персонажа. Создайте его через /portrait или /portrait-generate');
+    if (!positive.trim()) {
+        toastr.warning('❌ Нет положительного описания для этого персонажа. Создайте его через /portrait или /portrait-generate');
         return;
     }
 
-    // 1. Заполняем поле Character-specific prompt prefix (визуально)
+    // 1. Открываем вкладку Image Generation и заполняем оба поля
     $('.character-popups .tab:contains("Image Generation")').trigger('click');
     await new Promise(r => setTimeout(r, 400));
 
-    const $field = $('#sd_character_prompt');
-    if ($field.length) {
-        $field.val(description).trigger('input').trigger('change');
-        toastr.success('✅ Prompt prefix установлен');
+    const $positiveField = $('#sd_character_prompt');
+    const $negativeField = $('#sd_character_negative_prompt');
+
+    if ($positiveField.length) {
+        $positiveField.val(positive).trigger('input').trigger('change');
+        toastr.success('✅ Положительный промпт установлен');
     } else {
-        console.warn('[PortraitBank] Поле #sd_character_prompt не найдено, но команда /sd you будет выполнена');
+        console.warn('[PortraitBank] Поле #sd_character_prompt не найдено');
     }
 
-    // 2. Запускаем генерацию изображения через встроенную команду /sd you (работает везде)
+    if ($negativeField.length) {
+        $negativeField.val(negative).trigger('input').trigger('change');
+        toastr.success('✅ Отрицательный промпт установлен');
+    } else {
+        console.warn('[PortraitBank] Поле #sd_character_negative_prompt не найдено');
+    }
+
+    // 2. Запускаем генерацию изображения
     try {
         if (typeof ctx.executeSlashCommands !== 'function') {
             throw new Error('Функция executeSlashCommands не найдена. Обновите SillyTavern.');
@@ -373,7 +452,9 @@ function createSettingsUI() {
                         <button id="portraitbank_save_prompt" class="menu_button"><i class="fa-solid fa-save"></i> Сохранить инструкцию</button>
                         <button id="portraitbank_reset_prompt" class="menu_button"><i class="fa-solid fa-undo"></i> Сбросить</button>
                     </div>
+                    
                     <hr>
+                    
                     <h4>Параметры генерации</h4>
                     <div class="flex-row">
                         <label for="portraitbank_temperature">Temperature</label>
@@ -383,14 +464,21 @@ function createSettingsUI() {
                         <label for="portraitbank_max_tokens">Max tokens</label>
                         <input type="number" id="portraitbank_max_tokens" class="text_pole flex1" value="${settings.modelParams.max_tokens}" min="100" max="1000" step="50">
                     </div>
+                    
                     <hr>
+                    
                     <h4>Действия</h4>
-                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                         <button id="portraitbank_ui_generate" class="menu_button"><i class="fa-solid fa-wand-magic-sparkles"></i> Сгенерировать описание</button>
-                        <button id="portraitbank_ui_image" class="menu_button"><i class="fa-solid fa-image"></i> Заполнить поле и сгенерировать изображение</button>
-                        <button id="portraitbank_ui_edit" class="menu_button"><i class="fa-solid fa-pencil"></i> Редактировать описание</button>
+                        <button id="portraitbank_ui_image" class="menu_button"><i class="fa-solid fa-image"></i> Заполнить поля и генерация</button>
+                        <button id="portraitbank_ui_edit" class="menu_button"><i class="fa-solid fa-pencil"></i> Положительный промпт</button>
+                        <button id="portraitbank_ui_negative" class="menu_button"><i class="fa-solid fa-ban"></i> Отрицательный промпт</button>
                     </div>
-                    <p class="hint" style="margin-top:10px;">Текущий персонаж: <span id="portraitbank_current_char">—</span>, описание: <span id="portraitbank_current_desc_preview">—</span></p>
+                    <p class="hint" style="margin-top:10px;">
+                        Текущий персонаж: <span id="portraitbank_current_char">—</span><br>
+                        Положительный: <span id="portraitbank_current_desc_preview">—</span><br>
+                        Отрицательный: <span id="portraitbank_current_negative_preview">—</span>
+                    </p>
                 </div>
             </div>
         </div>
@@ -403,50 +491,56 @@ function createSettingsUI() {
 function bindSettingsUI() {
     const settings = getSettings();
 
+    // Инструкция
     $('#portraitbank_save_prompt').on('click', function() {
         const newPrompt = $('#portraitbank_prompt_editor').val();
         settings.generationPrompt = newPrompt;
         saveSettings();
         toastr.success('Инструкция сохранена');
     });
-
     $('#portraitbank_reset_prompt').on('click', function() {
         $('#portraitbank_prompt_editor').val(defaultSettings.generationPrompt);
         settings.generationPrompt = defaultSettings.generationPrompt;
         saveSettings();
-        toastr.info('Инструкция сброшена к умолчанию');
+        toastr.info('Инструкция сброшена');
     });
 
+    // Температура / max tokens
     $('#portraitbank_temperature').on('input', function() {
         settings.modelParams.temperature = parseFloat($(this).val()) || 0.9;
         saveSettings();
     });
-
     $('#portraitbank_max_tokens').on('input', function() {
         settings.modelParams.max_tokens = parseInt($(this).val()) || 400;
         saveSettings();
     });
 
+    // Кнопки действий
     $('#portraitbank_ui_generate').on('click', function() {
         toastr.info('⏳ Генерация описания...');
         generateDescriptionFromPrompt('');
     });
-
     $('#portraitbank_ui_image').on('click', function() {
         portraitImageCommand();
     });
-
     $('#portraitbank_ui_edit').on('click', function() {
         openModal();
     });
+    $('#portraitbank_ui_negative').on('click', function() {
+        openNegativeModal();
+    });
 
+    // Обновление информации о текущем персонаже
     function updateUIInfo() {
         const ctx = SillyTavern.getContext();
         const charName = ctx.characters?.[ctx.characterId]?.name || '—';
-        const desc = getDescription(ctx.characterId);
-        const preview = desc.length > 50 ? desc.substring(0, 50) + '…' : desc || 'пусто';
+        const positive = getDescription(ctx.characterId);
+        const negative = getNegativeDescription(ctx.characterId);
+        const posPreview = positive.length > 50 ? positive.substring(0, 50) + '…' : positive || 'пусто';
+        const negPreview = negative.length > 50 ? negative.substring(0, 50) + '…' : negative || 'пусто';
         $('#portraitbank_current_char').text(charName);
-        $('#portraitbank_current_desc_preview').text(preview);
+        $('#portraitbank_current_desc_preview').text(posPreview);
+        $('#portraitbank_current_negative_preview').text(negPreview);
     }
 
     updateUIInfo();
@@ -464,12 +558,13 @@ function registerCommands() {
     const ctx = SillyTavern.getContext();
 
     try {
-        ctx.registerSlashCommand('portrait', openModal, [], '– открыть редактор описания внешности', true, true);
+        ctx.registerSlashCommand('portrait', openModal, [], '– открыть редактор положительного промпта', true, true);
+        ctx.registerSlashCommand('portrait-negative', openNegativeModal, ['portrait-neg'], '– открыть редактор отрицательного промпта', true, true);
         ctx.registerSlashCommand('portrait-generate', () => {
             const hint = prompt('Введите подсказки для генерации (можно оставить пустым):', '');
             if (hint !== null) generateDescriptionFromPrompt(hint);
-        }, ['portrait-gen'], '– сгенерировать описание через AI (укажите подсказки в диалоге)', true, false);
-        ctx.registerSlashCommand('portrait-image', portraitImageCommand, ['portrait-img'], '– записать описание в промпт-префикс и запустить /sd you', true, false);
+        }, ['portrait-gen'], '– сгенерировать положительное описание через AI', true, false);
+        ctx.registerSlashCommand('portrait-image', portraitImageCommand, ['portrait-img'], '– заполнить оба поля и запустить /sd you', true, false);
         console.log('[PortraitBank] Slash commands registered');
     } catch (e) {
         console.error('[PortraitBank] Failed to register commands:', e);
@@ -497,22 +592,37 @@ function addUserMenuButton() {
         e.preventDefault();
         openModal();
     });
+
+    // Добавляем пункт для негативного промпта
+    const negItem = $(`
+        <li id="portraitbank_user_negative_item">
+            <a href="#"><i class="fa-solid fa-ban"></i> PortraitBank Negative</a>
+        </li>
+    `);
+    userMenu.append(negItem);
+    negItem.on('click', (e) => {
+        e.preventDefault();
+        openNegativeModal();
+    });
 }
 
 // ----- Inject prompt into generation ---------------------------------
 function setupInjection() {
     const ctx = SillyTavern.getContext();
     ctx.eventSource.on(ctx.eventTypes.GENERATION_STARTED, () => {
-        const desc = getDescription(ctx.characterId);
-        if (desc.trim()) {
+        const positive = getDescription(ctx.characterId);
+        const negative = getNegativeDescription(ctx.characterId);
+        if (positive.trim()) {
             ctx.setExtensionPrompt(
-                MODULE_NAME,
-                `[Character appearance: ${desc.trim()}]`,
+                MODULE_NAME + '_positive',
+                `[Character appearance: ${positive.trim()}]`,
                 'after_context',
                 15,
                 'system'
             );
         }
+        // Негативный промпт обычно не добавляют в системный, он используется через поле
+        // Но можно добавить как отрицательный контекст, если API поддерживает
     });
 }
 
@@ -522,6 +632,7 @@ function setupInjection() {
 
     getSettings();
     createModal();
+    createNegativeModal();
     createCompareModal();
 
     function tryRegister() {
@@ -554,10 +665,19 @@ function setupInjection() {
     $(document).off('click', '#portraitbank_save').on('click', '#portraitbank_save', function() {
         const ctx = SillyTavern.getContext();
         setDescription(ctx.characterId, $('#portraitbank_textarea').val());
-        toastr.success('Описание сохранено');
+        toastr.success('Положительный промпт сохранён');
         closeModal();
     });
     $(document).off('click', '#portraitbank_cancel, #portraitbank_close, #portraitbank_overlay').on('click', '#portraitbank_cancel, #portraitbank_close, #portraitbank_overlay', closeModal);
+
+    // ----- Обработчики негативной модалки -----
+    $(document).off('click', '#portraitbank_negative_save').on('click', '#portraitbank_negative_save', function() {
+        const ctx = SillyTavern.getContext();
+        setNegativeDescription(ctx.characterId, $('#portraitbank_negative_textarea').val());
+        toastr.success('Отрицательный промпт сохранён');
+        closeNegativeModal();
+    });
+    $(document).off('click', '#portraitbank_negative_cancel, #portraitbank_negative_close, #portraitbank_negative_overlay').on('click', '#portraitbank_negative_cancel, #portraitbank_negative_close, #portraitbank_negative_overlay', closeNegativeModal);
 
     // ----- Обработчики закрытия окна сравнения -----
     $(document).off('click', '#portraitbank_compare_cancel, #portraitbank_compare_close, #portraitbank_compare_overlay').on('click', '#portraitbank_compare_cancel, #portraitbank_compare_close, #portraitbank_compare_overlay', closeCompareModal);
