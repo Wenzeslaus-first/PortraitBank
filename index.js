@@ -79,7 +79,7 @@ function closeModal() {
     $('#portraitbank_modal, #portraitbank_overlay').fadeOut(200);
 }
 
-// ----- ADAPTIVE: Compare Modal (desktop: centered two columns, mobile: top-aligned with scroll) -----
+// ----- ADAPTIVE: Compare Modal (desktop: centered two columns, mobile: top-aligned, semi‑transparent) -----
 function createCompareModal() {
     if (document.getElementById('portraitbank_compare_modal')) return;
     
@@ -109,11 +109,11 @@ function openCompareModal(oldText, newText) {
     const overlay = $('#portraitbank_compare_overlay');
     const contentDiv = $('#portraitbank_compare_content');
 
-    // Сброс стилей: оставляем базовые
-    modal.attr('style', 'display: none; position: fixed; background: var(--surface); border: 2px solid var(--primary); padding: 0; z-index: 9999; box-shadow: 0 0 20px rgba(0,0,0,0.7);');
+    // Сброс стилей
+    modal.attr('style', 'display: none; position: fixed; border: 2px solid var(--primary); padding: 0; z-index: 9999; box-shadow: 0 0 20px rgba(0,0,0,0.7);');
 
     if (isMobile) {
-        // --- МОБИЛЬНЫЙ РЕЖИМ: окно прижато к верху, полностью видимое, с прокруткой ---
+        // --- МОБИЛЬНЫЙ РЕЖИМ: окно прижато к верху, полностью видимое, с прокруткой, полупрозрачный серый фон ---
         modal.css({
             top: '10px',
             left: '5%',
@@ -124,6 +124,7 @@ function openCompareModal(oldText, newText) {
             transform: 'none',
             borderRadius: '16px',
             bottom: 'auto',
+            background: 'rgba(32, 32, 32, 0.95)', // полупрозрачный серый
         });
 
         const mobileHtml = `
@@ -200,7 +201,7 @@ function openCompareModal(oldText, newText) {
         });
 
     } else {
-        // --- ДЕСКТОПНЫЙ РЕЖИМ: два столбца, центрированное окно ---
+        // --- ДЕСКТОПНЫЙ РЕЖИМ: два столбца, центрированное окно, непрозрачный фон ---
         modal.css({
             top: '50%',
             left: '50%',
@@ -211,6 +212,7 @@ function openCompareModal(oldText, newText) {
             maxHeight: 'none',
             overflowY: 'visible',
             padding: '20px',
+            background: 'var(--surface)', // оригинальный непрозрачный фон
         });
 
         const desktopHtml = `
