@@ -18,7 +18,6 @@ function getSettings() {
     if (!context.extensionSettings[MODULE_NAME]) {
         context.extensionSettings[MODULE_NAME] = structuredClone(defaultSettings);
     }
-    // ensure all keys exist
     const stored = context.extensionSettings[MODULE_NAME];
     for (const key of Object.keys(defaultSettings)) {
         if (!Object.hasOwn(stored, key)) {
@@ -76,16 +75,14 @@ function closeModal() {
 }
 
 // ----- AI Generation of description (quiet prompt) --------------------
-async function generateDescriptionFromPrompt(promptText) {
+async function generateDescriptionFromPrompt(promptText = '') {
     const ctx = SillyTavern.getContext();
     const settings = getSettings();
 
-    if (!promptText.trim()) {
-        toastr.warning('Введите подсказку для генерации');
-        return;
-    }
-
-    const finalPrompt = ctx.substituteParams(settings.generationPrompt + '\n\n' + promptText);
+    // Если пользователь ничего не ввёл – используем только инструкцию
+    const finalPrompt = promptText?.trim()
+        ? ctx.substituteParams(settings.generationPrompt + '\n\n' + promptText)
+        : ctx.substituteParams(settings.generationPrompt);
 
     try {
         if (typeof ctx.generateQuietPrompt !== 'function') {
@@ -163,7 +160,7 @@ function createSettingsUI() {
                 <div class="iig-settings" style="padding: 10px;">
                     <h4>Инструкция для генерации описания</h4>
                     <p class="hint">Этот промпт отправляется AI вместе с вашими подсказками. Используйте {{char}}, {{gender}} и другие макросы.</p>
-                    <textarea id="portraitbank_prompt_editor" class="text_pole" style="width:100%; min-height:150px; font-family:monospace;">${settings.generationPrompt}</textarea>
+                    <textarea id="portraitbank_prompt_editor" class="text_pole" style="width:100%; min-height:150px; font-family:monospace;">${settings.generationPrompt.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
                     <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:10px;">
                         <button id="portraitbank_save_prompt" class="menu_button"><i class="fa-solid fa-save"></i> Сохранить инструкцию</button>
                         <button id="portraitbank_reset_prompt" class="menu_button"><i class="fa-solid fa-undo"></i> Сбросить</button>
@@ -230,13 +227,10 @@ function bindSettingsUI() {
         saveSettings();
     });
 
-    // Кнопка "Сгенерировать описание"
+    // *** ИСПРАВЛЕНИЕ: Кнопка "Сгенерировать описание" теперь берёт инструкцию из поля ***
     $('#portraitbank_ui_generate').on('click', function() {
-        // Запросим подсказку у пользователя
-        const hint = prompt('Введите подсказки для генерации (стиль, детали):', '');
-        if (hint !== null) {
-            generateDescriptionFromPrompt(hint);
-        }
+        toastr.info('⏳ Генерация описания...');
+        generateDescriptionFromPrompt(''); // пустая строка = использовать только инструкцию
     });
 
     // Кнопка "Заполнить поле и сгенерировать изображение"
@@ -259,7 +253,6 @@ function bindSettingsUI() {
         $('#portraitbank_current_desc_preview').text(preview);
     }
 
-    // Обновляем при загрузке и смене персонажа
     updateUIInfo();
     SillyTavern.getContext().eventSource.on(SillyTavern.getContext().eventTypes.CHARACTER_SWITCHED, updateUIInfo);
 }
@@ -270,10 +263,11 @@ function registerCommands() {
 
     try {
         ctx.registerSlashCommand('portrait', openModal, [], '– открыть редактор описания внешности', true, true);
+        // Команда с диалогом – позволяет ввести дополнительные подсказки
         ctx.registerSlashCommand('portrait-generate', () => {
-            const hint = prompt('Введите подсказки для генерации:', '');
+            const hint = prompt('Введите подсказки для генерации (можно оставить пустым):', '');
             if (hint !== null) generateDescriptionFromPrompt(hint);
-        }, ['portrait-gen'], '– сгенерировать описание через AI', true, false);
+        }, ['portrait-gen'], '– сгенерировать описание через AI (укажите подсказки в диалоге)', true, false);
         ctx.registerSlashCommand('portrait-image', portraitImageCommand, ['portrait-img'], '– записать описание в промпт-префикс и запустить Yourself', true, false);
         console.log('[PortraitBank] Slash commands registered');
     } catch (e) {
@@ -281,7 +275,7 @@ function registerCommands() {
     }
 }
 
-// ----- User menu button (optional, but nice) -------------------------
+// ----- User menu button (optional) -----------------------------------
 function addUserMenuButton() {
     const userMenu = $('.top-bar .dropdown-menu').first();
     if (!userMenu.length) {
@@ -303,9 +297,8 @@ function addUserMenuButton() {
         openModal();
     });
 }
-// --------------------------------------------------------------------
 
-// ----- Inject prompt into generation (already done) ------------------
+// ----- Inject prompt into generation ---------------------------------
 function setupInjection() {
     const ctx = SillyTavern.getContext();
     ctx.eventSource.on(ctx.eventTypes.GENERATION_STARTED, () => {
@@ -322,17 +315,14 @@ function setupInjection() {
     });
 }
 
-// ----- INITIALIZATION (exactly like IIG) ----------------------------
+// ----- INITIALIZATION ------------------------------------------------
 (function init() {
     console.log('[PortraitBank] Initializing...');
 
-    // 1. Инициализируем настройки
     getSettings();
-
-    // 2. Создаём модальное окно
     createModal();
 
-    // 3. Регистрируем команды (ждём контекст)
+    // Register commands when context is ready
     function tryRegister() {
         if (SillyTavern.getContext()?.registerSlashCommand) {
             registerCommands();
@@ -342,9 +332,8 @@ function setupInjection() {
     }
     tryRegister();
 
-    // 4. Подписываемся на события после полной загрузки приложения
     const context = SillyTavern.getContext();
-    context.eventSource.on(context.event_types.APP_READY, () => {
+    context.eventSource.on(context.eventTypes.APP_READY, () => {
         console.log('[PortraitBank] APP_READY – creating UI');
         createSettingsUI();
         addUserMenuButton();
@@ -352,7 +341,6 @@ function setupInjection() {
         console.log('[PortraitBank] Fully loaded');
     });
 
-    // 5. Если APP_READY уже случился, создаём UI сейчас
     if (context.app_ready) {
         setTimeout(() => {
             createSettingsUI();
@@ -361,7 +349,7 @@ function setupInjection() {
         }, 100);
     }
 
-    // 6. Обработчики модалки (один раз глобально)
+    // Modal event handlers (global)
     $(document).off('click', '#portraitbank_save').on('click', '#portraitbank_save', function() {
         const ctx = SillyTavern.getContext();
         setDescription(ctx.characterId, $('#portraitbank_textarea').val());
