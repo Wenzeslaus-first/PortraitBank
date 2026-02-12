@@ -1,7 +1,8 @@
 {
     "display_name": "PortraitBank",
     "version": "1.0.0",
-    "author": "Your name",
+    "author": "Wenzeslaus-first",
     "js": "index.js",
+     "homePage": "https://github.com/Wenzeslaus-first/PortraitBank",
     "auto_update": false
 }
