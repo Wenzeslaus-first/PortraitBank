@@ -79,10 +79,9 @@ function closeModal() {
     $('#portraitbank_modal, #portraitbank_overlay').fadeOut(200);
 }
 
-// ----- ADAPTIVE: Compare Modal (desktop: centered two columns, mobile: top-aligned, semi‑transparent) -----
+// ----- ADAPTIVE: Compare Modal (desktop: two columns, mobile: top sheet) -----
 function createCompareModal() {
     if (document.getElementById('portraitbank_compare_modal')) return;
-    
     const modalHtml = `
         <div id="portraitbank_compare_modal" style="display: none; position: fixed; background: var(--surface); border: 2px solid var(--primary); padding: 0; z-index: 9999; box-shadow: 0 0 20px rgba(0,0,0,0.7);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 20px 20px 0 20px;">
@@ -109,11 +108,9 @@ function openCompareModal(oldText, newText) {
     const overlay = $('#portraitbank_compare_overlay');
     const contentDiv = $('#portraitbank_compare_content');
 
-    // Сброс стилей
     modal.attr('style', 'display: none; position: fixed; border: 2px solid var(--primary); padding: 0; z-index: 9999; box-shadow: 0 0 20px rgba(0,0,0,0.7);');
 
     if (isMobile) {
-        // --- МОБИЛЬНЫЙ РЕЖИМ: окно прижато к верху, полностью видимое, с прокруткой, полупрозрачный серый фон ---
         modal.css({
             top: '10px',
             left: '5%',
@@ -124,25 +121,18 @@ function openCompareModal(oldText, newText) {
             transform: 'none',
             borderRadius: '16px',
             bottom: 'auto',
-            background: 'rgba(32, 32, 32, 0.95)', // полупрозрачный серый
+            background: 'rgba(32, 32, 32, 0.95)',
         });
 
         const mobileHtml = `
             <div style="display: flex; flex-direction: column; gap: 16px;">
-                <!-- Вкладки -->
                 <div style="display: flex; border-bottom: 1px solid var(--gray600);">
-                    <div id="portraitbank_tab_old" style="flex: 1; text-align: center; padding: 10px; cursor: pointer; border-bottom: 3px solid var(--primary); color: var(--primary); font-weight: bold;">
-                        Текущее
-                    </div>
-                    <div id="portraitbank_tab_new" style="flex: 1; text-align: center; padding: 10px; cursor: pointer; border-bottom: 3px solid transparent; color: var(--gray300); font-weight: bold;">
-                        Новое
-                    </div>
+                    <div id="portraitbank_tab_old" style="flex: 1; text-align: center; padding: 10px; cursor: pointer; border-bottom: 3px solid var(--primary); color: var(--primary); font-weight: bold;">Текущее</div>
+                    <div id="portraitbank_tab_new" style="flex: 1; text-align: center; padding: 10px; cursor: pointer; border-bottom: 3px solid transparent; color: var(--gray300); font-weight: bold;">Новое</div>
                 </div>
-                <!-- Текстовое поле (можно растягивать по вертикали) -->
                 <textarea id="portraitbank_compare_textarea" 
                     style="width: 100%; min-height: 180px; padding: 12px; border-radius: 8px; background: var(--black50a); color: var(--white); border: 1px solid var(--gray500); font-size: 16px; resize: vertical; box-sizing: border-box;"
                 >${oldText}</textarea>
-                <!-- Кнопка выбора -->
                 <button id="portraitbank_choose_mobile" class="menu_button" style="width: 100%; padding: 12px; font-size: 16px;">
                     <i class="fa-solid fa-check"></i> Выбрать это описание
                 </button>
@@ -153,7 +143,7 @@ function openCompareModal(oldText, newText) {
         `;
         contentDiv.empty().append(mobileHtml);
 
-        // --- Обработчики вкладок ---
+        // Вкладки
         $('#portraitbank_tab_old').off().on('click', function() {
             activeTab = 'old';
             $('#portraitbank_compare_textarea').val(currentOldText);
@@ -167,16 +157,13 @@ function openCompareModal(oldText, newText) {
             $('#portraitbank_tab_old').css({ 'border-bottom-color': 'transparent', 'color': 'var(--gray300)' });
         });
 
-        // --- Свайп ---
+        // Свайп
         let touchStartX = 0;
         const textarea = document.getElementById('portraitbank_compare_textarea');
         if (textarea) {
             textarea.removeEventListener('touchstart', textarea._touchStart);
             textarea.removeEventListener('touchend', textarea._touchEnd);
-            
-            textarea._touchStart = function(e) {
-                touchStartX = e.touches[0].clientX;
-            };
+            textarea._touchStart = function(e) { touchStartX = e.touches[0].clientX; };
             textarea._touchEnd = function(e) {
                 if (touchStartX === 0) return;
                 const diffX = e.changedTouches[0].clientX - touchStartX;
@@ -192,7 +179,7 @@ function openCompareModal(oldText, newText) {
             textarea.addEventListener('touchend', textarea._touchEnd, { passive: true });
         }
 
-        // --- Кнопка выбора ---
+        // Кнопка выбора
         $('#portraitbank_choose_mobile').off().on('click', function() {
             const ctx = SillyTavern.getContext();
             setDescription(ctx.characterId, $('#portraitbank_compare_textarea').val());
@@ -201,7 +188,7 @@ function openCompareModal(oldText, newText) {
         });
 
     } else {
-        // --- ДЕСКТОПНЫЙ РЕЖИМ: два столбца, центрированное окно, непрозрачный фон ---
+        // Десктоп: два столбца
         modal.css({
             top: '50%',
             left: '50%',
@@ -212,7 +199,7 @@ function openCompareModal(oldText, newText) {
             maxHeight: 'none',
             overflowY: 'visible',
             padding: '20px',
-            background: 'var(--surface)', // оригинальный непрозрачный фон
+            background: 'var(--surface)',
         });
 
         const desktopHtml = `
@@ -292,7 +279,7 @@ async function generateDescriptionFromPrompt(promptText = '') {
     }
 }
 
-// ----- Command: set prompt prefix and click Yourself -----------------
+// ----- Command: set prompt prefix and generate image via /sd you -----
 async function portraitImageCommand() {
     const ctx = SillyTavern.getContext();
     const charId = ctx.characterId;
@@ -303,6 +290,7 @@ async function portraitImageCommand() {
         return;
     }
 
+    // 1. Заполняем поле Character-specific prompt prefix (через UI – для наглядности)
     $('.character-popups .tab:contains("Image Generation")').trigger('click');
     await new Promise(r => setTimeout(r, 400));
 
@@ -311,19 +299,31 @@ async function portraitImageCommand() {
         $field.val(description).trigger('input').trigger('change');
         toastr.success('✅ Prompt prefix установлен');
     } else {
-        toastr.error('❌ Поле #sd_character_prompt не найдено');
-        return;
+        toastr.error('❌ Поле #sd_character_prompt не найдено. Генерация может не использовать ваше описание.');
     }
 
-    setTimeout(() => {
-        const $btn = $('#yourself_button, button:contains("Yourself")').first();
-        if ($btn.length) {
-            $btn.trigger('click');
-            toastr.info('🎨 Генерация изображения запущена');
+    // 2. Запускаем генерацию изображения через встроенную команду /sd you
+    try {
+        if (typeof ctx.executeSlashCommands === 'function') {
+            await ctx.executeSlashCommands('/sd you');
+            toastr.success('🎨 Команда /sd you выполнена. Изображение генерируется.');
         } else {
-            toastr.error('❌ Кнопка Yourself не найдена. Нажмите вручную.');
+            // Fallback: если executeSlashCommands недоступен, пробуем клик по кнопке Yourself
+            toastr.warning('⚠️ executeSlashCommands не доступен, пробую клик по кнопке Yourself');
+            setTimeout(() => {
+                const $btn = $('#sd_you, #yourself_button, button:contains("Yourself")').first();
+                if ($btn.length) {
+                    $btn.trigger('click');
+                    toastr.success('🎨 Генерация изображения запущена');
+                } else {
+                    toastr.error('❌ Не удалось запустить генерацию. Нажмите Yourself вручную.');
+                }
+            }, 500);
         }
-    }, 300);
+    } catch (e) {
+        console.error('[PortraitBank] Ошибка выполнения /sd you:', e);
+        toastr.error('❌ Ошибка при выполнении /sd you: ' + e.message);
+    }
 }
 
 // ----- UI Settings Panel (Extensions tab) ----------------------------
@@ -424,7 +424,15 @@ function bindSettingsUI() {
     }
 
     updateUIInfo();
-    SillyTavern.getContext().eventSource.on(SillyTavern.getContext().eventTypes.CHARACTER_SWITCHED, updateUIInfo);
+
+    // Исправление ошибки "Cannot listen to undefined event"
+    const ctx = SillyTavern.getContext();
+    if (ctx.eventTypes && ctx.eventTypes.CHARACTER_SWITCHED) {
+        ctx.eventSource.on(ctx.eventTypes.CHARACTER_SWITCHED, updateUIInfo);
+    } else {
+        // fallback — обновляем раз в секунду
+        setInterval(updateUIInfo, 1000);
+    }
 }
 
 // ----- Slash Commands ------------------------------------------------
@@ -437,7 +445,7 @@ function registerCommands() {
             const hint = prompt('Введите подсказки для генерации (можно оставить пустым):', '');
             if (hint !== null) generateDescriptionFromPrompt(hint);
         }, ['portrait-gen'], '– сгенерировать описание через AI (укажите подсказки в диалоге)', true, false);
-        ctx.registerSlashCommand('portrait-image', portraitImageCommand, ['portrait-img'], '– записать описание в промпт-префикс и запустить Yourself', true, false);
+        ctx.registerSlashCommand('portrait-image', portraitImageCommand, ['portrait-img'], '– записать описание в промпт-префикс и запустить /sd you', true, false);
         console.log('[PortraitBank] Slash commands registered');
     } catch (e) {
         console.error('[PortraitBank] Failed to register commands:', e);
