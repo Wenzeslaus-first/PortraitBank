@@ -109,48 +109,51 @@ function openCompareModal(oldText, newText) {
     const overlay = $('#portraitbank_compare_overlay');
     const contentDiv = $('#portraitbank_compare_content');
 
-    // Полностью сбрасываем стили позиционирования, чтобы начать с чистого листа
+    // Полный сброс стилей
     modal.attr('style', 'display: none; position: fixed; background: var(--surface); border: 2px solid var(--primary); padding: 20px; z-index: 9999; box-shadow: 0 0 20px rgba(0,0,0,0.7);');
 
     if (isMobile) {
-        // --- МОБИЛЬНЫЙ РЕЖИМ: нижний лист, всегда видимый ---
+        // ---------- МОБИЛЬНАЯ ВЕРСИЯ: ПРОСТАЯ И НАДЁЖНАЯ ----------
         modal.css({
-            display: 'none',          // будет показано позже
+            display: 'none',
             position: 'fixed',
-            bottom: '0',
-            left: '0',
-            right: '0',
-            width: '100%',
-            maxWidth: '100%',
-            transform: 'none',
-            borderRadius: '16px 16px 0 0',
-            maxHeight: '80vh',
+            bottom: '10px',          // отступ от низа
+            left: '5%',             // центрирование через %
+            right: '5%',           // ширина 90%
+            width: 'auto',         // не фиксированная ширина
+            transform: 'none',      // никаких трансформаций
+            borderRadius: '16px',
+            maxHeight: '70vh',      // 70% высоты экрана
             overflowY: 'auto',
-            padding: '20px',
+            padding: '16px',
             boxSizing: 'border-box',
         });
 
         const mobileHtml = `
-            <div style="display: flex; flex-direction: column; gap: 15px; width: 100%;">
+            <div style="display: flex; flex-direction: column; gap: 12px;">
                 <!-- Вкладки -->
-                <div style="display: flex; border-bottom: 1px solid var(--gray600); margin-bottom: 10px;">
-                    <div id="portraitbank_tab_old" style="flex: 1; text-align: center; padding: 10px; cursor: pointer; border-bottom: 3px solid var(--primary); color: var(--primary); font-weight: bold;">
+                <div style="display: flex; border-bottom: 1px solid var(--gray600);">
+                    <div id="portraitbank_tab_old" style="flex: 1; text-align: center; padding: 8px; cursor: pointer; border-bottom: 3px solid var(--primary); color: var(--primary); font-weight: bold;">
                         Текущее
                     </div>
-                    <div id="portraitbank_tab_new" style="flex: 1; text-align: center; padding: 10px; cursor: pointer; border-bottom: 3px solid transparent; color: var(--gray300); font-weight: bold;">
+                    <div id="portraitbank_tab_new" style="flex: 1; text-align: center; padding: 8px; cursor: pointer; border-bottom: 3px solid transparent; color: var(--gray300); font-weight: bold;">
                         Новое
                     </div>
                 </div>
                 <!-- Текстовое поле -->
-                <textarea id="portraitbank_compare_textarea" style="width: 100%; min-height: 200px; padding: 12px; border-radius: 8px; background: var(--black50a); color: var(--white); border: 1px solid var(--gray500); font-size: 16px;">${oldText}</textarea>
+                <textarea id="portraitbank_compare_textarea" style="width: 100%; min-height: 150px; padding: 12px; border-radius: 8px; background: var(--black50a); color: var(--white); border: 1px solid var(--gray500); font-size: 16px; box-sizing: border-box;">${oldText}</textarea>
                 <!-- Кнопка выбора -->
-                <button id="portraitbank_choose_mobile" class="menu_button" style="width: 100%; padding: 12px;"><i class="fa-solid fa-check"></i> Выбрать это описание</button>
-                <p style="color: var(--gray400); font-size: 12px; margin: 5px 0 0 0;"><i class="fa-solid fa-arrows-left-right"></i> Свайп влево/вправо по тексту для переключения</p>
+                <button id="portraitbank_choose_mobile" class="menu_button" style="width: 100%; padding: 12px; font-size: 16px;">
+                    <i class="fa-solid fa-check"></i> Выбрать это описание
+                </button>
+                <p style="color: var(--gray400); font-size: 12px; margin: 0;">
+                    <i class="fa-solid fa-arrows-left-right"></i> Свайп по тексту для переключения
+                </p>
             </div>
         `;
         contentDiv.empty().append(mobileHtml);
 
-        // --- Обработчики вкладок ---
+        // --- Вкладки ---
         $('#portraitbank_tab_old').off().on('click', function() {
             activeTab = 'old';
             $('#portraitbank_compare_textarea').val(currentOldText);
@@ -164,7 +167,7 @@ function openCompareModal(oldText, newText) {
             $('#portraitbank_tab_old').css({ 'border-bottom-color': 'transparent', 'color': 'var(--gray300)' });
         });
 
-        // --- Обработчик свайпа ---
+        // --- Свайп ---
         let touchStartX = 0;
         const textarea = document.getElementById('portraitbank_compare_textarea');
         if (textarea) {
@@ -176,28 +179,15 @@ function openCompareModal(oldText, newText) {
             };
             textarea._touchEnd = function(e) {
                 if (touchStartX === 0) return;
-                const touchEndX = e.changedTouches[0].clientX;
-                const diffX = touchEndX - touchStartX;
-                
-                if (Math.abs(diffX) > 50) {
-                    if (diffX > 0) {
-                        activeTab = 'old';
-                    } else {
-                        activeTab = 'new';
-                    }
+                const diffX = e.changedTouches[0].clientX - touchStartX;
+                if (Math.abs(diffX) > 40) {
+                    activeTab = diffX > 0 ? 'old' : 'new';
                     $('#portraitbank_compare_textarea').val(activeTab === 'old' ? currentOldText : currentNewText);
-                    $('#portraitbank_tab_old').css({ 
-                        'border-bottom-color': activeTab === 'old' ? 'var(--primary)' : 'transparent',
-                        'color': activeTab === 'old' ? 'var(--primary)' : 'var(--gray300)'
-                    });
-                    $('#portraitbank_tab_new').css({ 
-                        'border-bottom-color': activeTab === 'new' ? 'var(--primary)' : 'transparent',
-                        'color': activeTab === 'new' ? 'var(--primary)' : 'var(--gray300)'
-                    });
+                    $('#portraitbank_tab_old').css('border-bottom-color', activeTab === 'old' ? 'var(--primary)' : 'transparent');
+                    $('#portraitbank_tab_new').css('border-bottom-color', activeTab === 'new' ? 'var(--primary)' : 'transparent');
                 }
                 touchStartX = 0;
             };
-            
             textarea.addEventListener('touchstart', textarea._touchStart, { passive: true });
             textarea.addEventListener('touchend', textarea._touchEnd, { passive: true });
         }
@@ -205,14 +195,13 @@ function openCompareModal(oldText, newText) {
         // --- Кнопка выбора ---
         $('#portraitbank_choose_mobile').off().on('click', function() {
             const ctx = SillyTavern.getContext();
-            const text = $('#portraitbank_compare_textarea').val();
-            setDescription(ctx.characterId, text);
+            setDescription(ctx.characterId, $('#portraitbank_compare_textarea').val());
             toastr.success(`Сохранено ${activeTab === 'old' ? 'текущее' : 'новое'} описание`);
             closeCompareModal();
         });
 
     } else {
-        // --- ДЕСКТОПНЫЙ РЕЖИМ: центрированное окно ---
+        // ---------- ДЕСКТОПНАЯ ВЕРСИЯ (без изменений) ----------
         modal.css({
             top: '50%',
             left: '50%',
@@ -223,6 +212,7 @@ function openCompareModal(oldText, newText) {
             maxHeight: 'none',
             overflowY: 'visible',
             bottom: 'auto',
+            left: 'auto',
             right: 'auto',
         });
 
@@ -231,7 +221,7 @@ function openCompareModal(oldText, newText) {
                 <div style="flex: 1; min-width: 250px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                         <span style="color: var(--gray300); font-weight: bold;">Текущее описание</span>
-                        <span class="fa-solid fa-pencil" style="color: var(--gray400);" title="Редактируемое поле"></span>
+                        <span class="fa-solid fa-pencil" style="color: var(--gray400);"></span>
                     </div>
                     <textarea id="portraitbank_compare_old" style="width: 100%; min-height: 200px; padding: 10px; border-radius: 8px; background: var(--black50a); color: var(--white); border: 1px solid var(--gray500);">${oldText}</textarea>
                     <button id="portraitbank_choose_old" class="menu_button" style="width: 100%; margin-top: 10px;"><i class="fa-solid fa-check"></i> Выбрать это описание</button>
@@ -239,7 +229,7 @@ function openCompareModal(oldText, newText) {
                 <div style="flex: 1; min-width: 250px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                         <span style="color: var(--gray300); font-weight: bold;">Новое описание</span>
-                        <span class="fa-solid fa-pencil" style="color: var(--gray400);" title="Редактируемое поле"></span>
+                        <span class="fa-solid fa-pencil" style="color: var(--gray400);"></span>
                     </div>
                     <textarea id="portraitbank_compare_new" style="width: 100%; min-height: 200px; padding: 10px; border-radius: 8px; background: var(--black50a); color: var(--white); border: 1px solid var(--gray500);">${newText}</textarea>
                     <button id="portraitbank_choose_new" class="menu_button" style="width: 100%; margin-top: 10px;"><i class="fa-solid fa-check"></i> Выбрать это описание</button>
@@ -250,21 +240,18 @@ function openCompareModal(oldText, newText) {
 
         $('#portraitbank_choose_old').off().on('click', function() {
             const ctx = SillyTavern.getContext();
-            const text = $('#portraitbank_compare_old').val();
-            setDescription(ctx.characterId, text);
+            setDescription(ctx.characterId, $('#portraitbank_compare_old').val());
             toastr.success('Сохранено текущее описание');
             closeCompareModal();
         });
         $('#portraitbank_choose_new').off().on('click', function() {
             const ctx = SillyTavern.getContext();
-            const text = $('#portraitbank_compare_new').val();
-            setDescription(ctx.characterId, text);
+            setDescription(ctx.characterId, $('#portraitbank_compare_new').val());
             toastr.success('Сохранено новое описание');
             closeCompareModal();
         });
     }
 
-    // Показываем окно
     modal.fadeIn(200);
     overlay.fadeIn(200);
 }
